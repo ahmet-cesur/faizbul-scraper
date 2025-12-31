@@ -9,7 +9,17 @@ const SPREADSHEET_ID = '1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY';
 async function main() {
     console.log('Starting Scraper...');
 
+    // 0. Validate Env Vars
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+        throw new Error('Missing GOOGLE_SERVICE_ACCOUNT_EMAIL env var');
+    }
+    if (!process.env.GOOGLE_PRIVATE_KEY) {
+        throw new Error('Missing GOOGLE_PRIVATE_KEY env var');
+    }
+    console.log('Environment variables check passed.');
+
     // 1. Setup Google Sheets Auth
+    console.log('Setting up Google Sheets Auth...');
     const serviceAccountAuth = new JWT({
         email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
         key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -19,19 +29,22 @@ async function main() {
     const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth);
 
     try {
+        console.log('Loading Sheet Info...');
         await doc.loadInfo();
         console.log(`Loaded doc: ${doc.title}`);
     } catch (e) {
-        console.error('Failed to load Google Sheet. Check permissions and ID.', e);
-        // Continue for testing scraping even if sheets fail? 
-        // No, usually we want to stop. But for dev let's try to proceed.
+        console.error('FAILED to connect to Google Sheet. Check permissions and ID.');
+        console.error(e.message);
+        throw e;
     }
 
     // 2. Setup Puppeteer
+    console.log('Launching Puppeteer...');
     const browser = await puppeteer.launch({
-        headless: true, // Use new headless mode
+        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
+    console.log('Browser launched successfully.');
 
     const page = await browser.newPage();
 
