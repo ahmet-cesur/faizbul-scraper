@@ -1,0 +1,35 @@
+name: Interest Rate Scraper
+
+on:
+  schedule:
+    # Run every day at 09:00 UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: scraper/package-lock.json
+
+    - name: Install Dependencies
+      working-directory: ./scraper
+      run: npm install
+
+    - name: Run Scraper
+      working-directory: ./scraper
+      env:
+        GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+        GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+      run: npm start

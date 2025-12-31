@@ -9,6 +9,9 @@ import com.acesur.faizbul.data.ScraperResultState
 import com.acesur.faizbul.data.ScraperSpec
 import com.acesur.faizbul.data.ScraperStatus
 import com.acesur.faizbul.data.ScraperScripts
+import com.acesur.faizbul.data.GoogleSheetRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -53,11 +56,45 @@ class ResultViewModel : ViewModel() {
 
         // Then launch coroutine to load cached data and build queue
         viewModelScope.launch {
+            // New Step: Try fetching from Google Sheet first
+            val sheetRates = try {
+                GoogleSheetRepository.fetchRates()
+            } catch (e: Exception) {
+                emptyList<InterestRate>()
+            }
+            android.util.Log.d("FaizBul", "Fetched ${sheetRates.size} rates from Google Sheet")
+
             val scrapersToQueue = mutableListOf<ScraperSpec>()
             
             allScrapers.forEach { spec ->
                 android.util.Log.d("FaizBul", "Processing scraper: ${spec.name}")
                 
+                // 1. Check Google Sheet Data
+                val sheetRate = sheetRates.find { 
+                    it.bankName == spec.bankName && 
+                    (it.description == spec.description || spec.description.contains(it.description)) 
+                }
+                
+                if (sheetRate != null && sheetRate.rate > 0) {
+                     val calc = calculateDetailedEarnings(amount, sheetRate.rate, days)
+                     val finalRate = sheetRate.copy(
+                        earnings = calc.net,
+                        grossEarnings = calc.gross,
+                        taxRate = calc.taxRate,
+                        // sheetRate.url might be generic, prefer spec.url if empty
+                        url = if (sheetRate.url.isNotEmpty()) sheetRate.url else spec.url
+                     )
+                     
+                     resultsMap[spec.name] = ScraperResultState(
+                        spec = spec,
+                        status = ScraperStatus.SUCCESS,
+                        rate = finalRate
+                    )
+                    android.util.Log.d("FaizBul", "Used Google Sheet rate for ${spec.name}")
+                    return@forEach // Skip caching/queue logic for this scraper
+                }
+
+                // 2. Fallback to Local Cache / Queue Logic
                 val lastHistory = com.acesur.faizbul.FaizBulApp.database.rateHistoryDao()
                     .getLastRate(spec.bankName, spec.description)
                 val cachedTable = com.acesur.faizbul.FaizBulApp.database.rateTableDao()
