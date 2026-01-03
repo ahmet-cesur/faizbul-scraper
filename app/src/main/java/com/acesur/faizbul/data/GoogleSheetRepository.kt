@@ -41,6 +41,7 @@ object GoogleSheetRepository {
                        val minDays = tokens[6].toIntOrNull() ?: 0
                        val maxDays = tokens[7].toIntOrNull() ?: 99999
                        val urlStr = tokens[8]
+                       val tJson = if (tokens.size >= 10) tokens[9] else null
                        
                        val timestamp = try { sdf.parse(dateStr)?.time ?: 0L } catch(e: Exception) { 0L }
                        
@@ -54,7 +55,8 @@ object GoogleSheetRepository {
                            maxAmount = maxAmount,
                            minDays = minDays,
                            maxDays = maxDays,
-                           timestamp = timestamp
+                           timestamp = timestamp,
+                           tableJson = tJson
                        ))
                    } catch (e: Exception) {
                        e.printStackTrace()

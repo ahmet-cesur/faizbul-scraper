@@ -122,7 +122,8 @@ class ResultViewModel : ViewModel() {
                         status = ScraperStatus.SUCCESS,
                         rate = finalRate,
                         isUsingCachedRate = isSheetRateStale,
-                        tableTimestamp = sheetRate.timestamp
+                        tableTimestamp = sheetRate.timestamp,
+                        cachedTableJson = sheetRate.tableJson
                     )
                     android.util.Log.d("FaizBul", "Matched Google Sheet rate for ${spec.name}: ${sheetRate.rate} (Stale: $isSheetRateStale)")
                     return@forEach // Skip caching/queue logic for this scraper

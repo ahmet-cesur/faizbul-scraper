@@ -197,7 +197,8 @@ async function main() {
                                     header.maxAmount || 999999999,
                                     row.minDays || 0,
                                     row.maxDays || 99999,
-                                    bank.url
+                                    bank.url,
+                                    result.json // Last column: Full table JSON
                                 ]);
                             }
                         });
