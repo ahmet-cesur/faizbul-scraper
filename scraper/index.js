@@ -109,8 +109,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-                    \${commonJs}
-                    function parseAmountRange(txt) {
+                    \n                    function parseAmountRange(txt) {
                         var val = txt.replace('TL', '').replace('ve üzeri', '').trim();
                         if (val.indexOf('-') > -1) {
                             var parts = val.split('-');
@@ -180,8 +179,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractGarantiTable() {
+                    \n                    function extractGarantiTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t];
@@ -235,8 +233,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractGarantiTable() {
+                    \n                    function extractGarantiTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t];
@@ -290,8 +287,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractEnparaTable() {
+                    \n                    function extractEnparaTable() {
                         var table = document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || document.querySelector('.enpara-deposit-interest-rates__flex-table');
                         if (!table) return false;
                         var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item'));
@@ -346,8 +342,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractAkbankTable() {
+                    \n                    function extractAkbankTable() {
                         var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet'));
                         if (!table) return false;
                         var rows = table.rows; if (!rows || rows.length < 3) return false;
@@ -388,8 +383,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractAkbankTable() {
+                    \n                    function extractAkbankTable() {
                         var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet'));
                         if (!table) return false;
                         var rows = table.rows; if (!rows || rows.length < 3) return false;
@@ -430,8 +424,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amt = 100000; var dur = 32; var step = 0; var attempts = 0;
-                    \${commonJs}
-                    function runApi(isStandard, desc) {
+                    \n                    function runApi(isStandard, desc) {
                         if (typeof $ === 'undefined' || typeof $.Page === 'undefined' || typeof $.Page.GetCalculationTool === 'undefined') return false;
                         $.Page.GetCalculationTool(isStandard, "YTL").done(function(response) {
                             try {
@@ -459,8 +452,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function getCellValue(cell) {
+                    \n                    function getCellValue(cell) {
                         var contentSpan = cell.querySelector('span.content');
                         if (contentSpan) return contentSpan.innerText.trim();
                         var headerSpan = cell.querySelector('span.headres');
@@ -514,8 +506,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-                    \${commonJs}
-                    function extractHalkbankTable() {
+                    \n                    function extractHalkbankTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
@@ -563,8 +554,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-                    \${commonJs}
-                    function extractVakifbankTable() {
+                    \n                    function extractVakifbankTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rows = table.querySelectorAll('tr');
@@ -612,8 +602,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-                    \${commonJs}
-                    function extractVakifbankTable() {
+                    \n                    function extractVakifbankTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rows = table.querySelectorAll('tr');
@@ -661,8 +650,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractAlternatifTable() {
+                    \n                    function extractAlternatifTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rect = table.getBoundingClientRect(); if (rect.width === 0 || rect.height === 0) continue;
@@ -700,8 +688,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-                    \${commonJs}
-                    function extractOdeabankTable() {
+                    \n                    function extractOdeabankTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; if (table.getBoundingClientRect().height < 10) continue;
@@ -745,8 +732,7 @@ async function main() {
             script: `(function() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
-                    \${commonJs}
-                    function extractDenizbankTable() {
+                    \n                    function extractDenizbankTable() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
@@ -816,6 +802,7 @@ async function main() {
 
             if (result.status === 'SUCCESS' && result.json) {
                 const table = JSON.parse(result.json);
+                console.log(`Extracted table for \${result.bank}: \${table.rows.length} rows`);
                 table.rows.forEach(row => {
                     row.rates.forEach((rate, colIdx) => {
                         if (rate !== null && rate > 0) {
@@ -834,6 +821,8 @@ async function main() {
                         }
                     });
                 });
+            } else {
+                console.warn(`No data extracted for \${bank.name}. Status: \${result.status} \${result.error || ''}`);
             }
         } catch (e) {
             console.error(`Error for \${bank.name}:`, e.message);

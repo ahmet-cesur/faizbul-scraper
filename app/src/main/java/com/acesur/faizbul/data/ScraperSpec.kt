@@ -7,7 +7,11 @@ data class InterestRate(
     val earnings: Double, // Net
     val grossEarnings: Double = 0.0,
     val taxRate: Double = 0.0,
-    val url: String = ""
+    val url: String = "",
+    val minAmount: Double = 0.0,
+    val maxAmount: Double = 999999999.0,
+    val minDays: Int = 0,
+    val maxDays: Int = 99999
 )
 
 enum class ScraperStatus { WAITING, WORKING, SUCCESS, FAILED }

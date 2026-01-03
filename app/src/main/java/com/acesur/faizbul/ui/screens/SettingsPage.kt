@@ -143,7 +143,7 @@ fun SettingsPage(navController: NavController) {
             var showThemeSheet by remember { mutableStateOf(false) }
             
             SettingsCard(
-                icon = if (currentThemeMode == AppThemeMode.DARK) Icons.Default.DarkMode else Icons.Default.LightMode,
+                icon = if (currentThemeMode == AppThemeMode.DARK) Icons.Filled.Info else Icons.Filled.CheckCircle,
                 iconColor = Amber500,
                 title = "Görünüm Modu",
                 subtitle = when(currentThemeMode) {
@@ -173,13 +173,16 @@ fun SettingsPage(navController: NavController) {
                             modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
                         )
                         
-                        val modes = listOf(
-                            Triple(AppThemeMode.SYSTEM, "Sistem Varsayılanı", Icons.Default.SettingsSuggest),
-                            Triple(AppThemeMode.LIGHT, "Açık Mod", Icons.Default.LightMode),
-                            Triple(AppThemeMode.DARK, "Koyu Mod", Icons.Default.DarkMode)
+                        val modes = listOf<Triple<AppThemeMode, String, ImageVector>>(
+                            Triple(AppThemeMode.SYSTEM, "Sistem Varsayılanı", Icons.Filled.Settings),
+                            Triple(AppThemeMode.LIGHT, "Açık Mod", Icons.Filled.CheckCircle),
+                            Triple(AppThemeMode.DARK, "Koyu Mod", Icons.Filled.Info)
                         )
                         
-                        modes.forEach { (mode, label, icon) ->
+                        modes.forEach { triple ->
+                            val mode = triple.first
+                            val label = triple.second
+                            val icon = triple.third
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -244,7 +247,17 @@ fun SettingsPage(navController: NavController) {
                         }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Column {
+                    var devTaps by remember { mutableStateOf(0) }
+                    Column(
+                        modifier = Modifier.clickable {
+                            // Secret Developer Trigger: 10 taps on version name
+                            devTaps++
+                            if (devTaps >= 10) {
+                                devTaps = 0
+                                navController.navigate("dev_trigger")
+                            }
+                        }
+                    ) {
                         Text(
                             "FaizBul",
                             style = MaterialTheme.typography.titleMedium,
