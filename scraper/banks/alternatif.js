@@ -1,10 +1,10 @@
 module.exports = {
     name: "Alternatif Bank",
-    url: "https://www.alternatifbank.com.tr/bilgi-merkezi/faiz-oranlari#mevduat",
+    url: "https://www.alternatifbank.com.tr/bilgi-merkezi/faiz-oranlari",
     desc: "E-Mevduat TRY",
     script: `(function() {
         try {
-            var amount = 100000; var duration = 32; var attempts = 0;
+            var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
             \n            function extractAlternatifTable() {
                 var tables = document.querySelectorAll('table');
                 for (var t = 0; t < tables.length; t++) {
@@ -47,7 +47,13 @@ module.exports = {
             }
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                if (extractAlternatifTable()) clearInterval(interval);
+                if (step === 0) {
+                    var acc = Array.from(document.querySelectorAll('.accordion-header, h2, button')).find(el => el.innerText.toUpperCase().includes('MEVDUAT'));
+                    if (acc) { acc.click(); step = 1; }
+                    else { step = 1; }
+                } else {
+                    if (extractAlternatifTable()) clearInterval(interval);
+                }
                 if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
             }, 800);
         } catch(e) { Android.sendError('PARSING_ERROR'); }

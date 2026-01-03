@@ -10,47 +10,76 @@ module.exports = {
                 if (!table) return false;
                 var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item'));
                 if (allItems.length < 5) return false;
+                
+                // Find all duration headers first
                 var durationHeaders = [];
-                for (var i = 1; i <= 4 && i < allItems.length; i++) {
-                    var headEl = allItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head');
+                var firstRowItems = allItems.slice(0, 10); // Check first few items for headers
+                for (var i = 0; i < firstRowItems.length; i++) {
+                    var headEl = firstRowItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head');
                     if (headEl) {
-                        var daysTxt = headEl.innerText.trim();
-                        if (!daysTxt.toLowerCase().includes('gün')) continue;
-                        var daysNum = parseInt(daysTxt.replace(/[^0-9]/g, ''));
-                        durationHeaders.push({ label: daysTxt, minDays: daysNum, maxDays: daysNum });
+                        var txt = headEl.innerText.trim();
+                        if (txt.toLowerCase().includes('gün')) {
+                            var num = parseInt(txt.replace(/[^0-9]/g, ''));
+                            durationHeaders.push({ label: txt, minDays: num, maxDays: num, indexInRow: i % 5 });
+                        }
                     }
                 }
                 if (durationHeaders.length === 0) return false;
                 
-                var tableRows = []; var headers = [];
-                for (var rowStart = 5; rowStart < allItems.length; rowStart += 5) {
-                    var amountItem = allItems[rowStart]; if (!amountItem) continue;
-                    var valEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value'); if (!valEl) continue;
-                    var amountTxt = valEl.innerText.trim();
-                    if (!amountTxt.includes('TL') && !amountTxt.match(/\\d/)) continue;
+                var amountHeaders = [];
+                var tableRows = [];
+                // Process in steps of 5
+                for (var i = 0; i < allItems.length; i += 5) {
+                    var items = allItems.slice(i, i + 5);
+                    if (items.length < 5) continue;
+                    
+                    var amountItem = items[0];
+                    var amountEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value') || amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-head');
+                    if (!amountEl) continue;
+                    var amountTxt = amountEl.innerText.trim();
+                    if (!amountTxt.match(/\\d/) && !amountTxt.includes('TL')) continue; // Skip header items that might have been picked up
+                    
+                    if (amountTxt.toLowerCase().includes('mevduat')) continue; // Skip "Mevduat büyüklüğü" header
                     
                     var minAmt = 0, maxAmt = 999999999;
                     if (amountTxt.indexOf('-') > -1) {
                         var parts = amountTxt.split('-');
                         minAmt = smartParseNumber(parts[0]);
                         maxAmt = smartParseNumber(parts[1]);
-                    } else if (amountTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(amountTxt); }
+                    } else if (amountTxt.includes('+') || amountTxt.toLowerCase().includes('üzeri')) {
+                        minAmt = smartParseNumber(amountTxt);
+                    } else {
+                        minAmt = smartParseNumber(amountTxt);
+                    }
                     
-                    headers.push({ label: amountTxt, minAmount: minAmt, maxAmount: maxAmt });
+                    amountHeaders.push({ label: amountTxt, minAmount: minAmt, maxAmount: maxAmt });
                     var rowRates = [];
-                    for (var c = 1; c <= 4 && (rowStart + c) < allItems.length; c++) {
-                        var rateValEl = allItems[rowStart + c].querySelector('.enpara-deposit-interest-rates__flex-table-value');
-                        rowRates.push(rateValEl ? smartParseNumber(rateValEl.innerText) : null);
+                    for (var c = 1; c < 5; c++) {
+                        var valEl = items[c].querySelector('.enpara-deposit-interest-rates__flex-table-value');
+                        var rate = valEl ? smartParseNumber(valEl.innerText) : null;
+                        rowRates.push(rate);
                     }
                     tableRows.push({ label: amountTxt, rates: rowRates });
                 }
-                if (tableRows.length < 1) return false;
                 
-                var outputHeaders = headers;
+                if (tableRows.length === 0) return false;
+
+                // Re-pivot: Duration headers become the rows for Android app's expectations
+                // Each outputRow is a duration, and its rates array contains values for each amount header column
                 var outputRows = durationHeaders.map(function(d, dIdx) {
-                    return { label: d.label, minDays: d.minDays, maxDays: d.maxDays, rates: tableRows.map(function(r) { return r.rates[dIdx]; }) };
+                    var ratesForThisDuration = tableRows.map(function(r) {
+                        // d.indexInRow - 1 because rowRates skip the amount column
+                        return r.rates[d.indexInRow - 1];
+                    });
+                    return {
+                        label: d.label,
+                        minDays: d.minDays,
+                        maxDays: d.maxDays,
+                        rates: ratesForThisDuration
+                    };
                 });
-                Android.sendRateWithTable(outputRows[0].rates[0], 'Vadeli Mevduat', 'Enpara.com', JSON.stringify({headers: outputHeaders, rows: outputRows}));
+
+                Android.sendRateWithTable(outputRows[0].rates[0], 'Vadeli Mevduat', 'Enpara.com', JSON.stringify({headers: amountHeaders, rows: outputRows}));
                 return true;
             }
             var interval = setInterval(function() {

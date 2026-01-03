@@ -4,7 +4,7 @@ module.exports = {
     desc: "İşCep Vadeli TL",
     script: `(function() {
         try {
-            var amount = 100000; var duration = 32; var attempts = 0;
+            var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
             \n            function getCellValue(cell) {
                 var contentSpan = cell.querySelector('span.content');
                 if (contentSpan) return contentSpan.innerText.trim();
@@ -53,7 +53,16 @@ module.exports = {
             }
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                if (findIsBankasiRate()) clearInterval(interval);
+                if (step === 0) {
+                    var sel = document.querySelector('#channelCode');
+                    if (sel) {
+                        sel.value = 'ISCEP';
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    step = 1;
+                } else {
+                    if (findIsBankasiRate()) clearInterval(interval);
+                }
                 if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
             }, 800);
         } catch(e) { Android.sendError('PARSING_ERROR'); }
