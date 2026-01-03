@@ -963,26 +963,44 @@ async function main() {
             if (result.status === 'SUCCESS' && result.json) {
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
-                table.rows.forEach(row => {
-                    row.rates.forEach((rate, colIdx) => {
-                        if (rate !== null && rate > 0) {
-                            const header = table.headers[colIdx];
-                            allFlattenedRows.push([
-                                executionDate,
-                                result.bank,
-                                result.desc,
-                                rate,
-                                header.minAmount || 0,
-                                header.maxAmount || 999999999,
-                                row.minDays || 0,
-                                row.maxDays || 99999,
-                                bank.url
-                            ]);
+
+                let hasInvalidRate = false;
+                for (const row of table.rows) {
+                    for (const rate of row.rates) {
+                        if (rate !== null && rate > 100) {
+                            hasInvalidRate = true;
+                            break;
                         }
+                    }
+                    if (hasInvalidRate) break;
+                }
+
+                if (hasInvalidRate) {
+                    bankStatus = 'ERROR';
+                    errorMessage = 'Back-end validation failed: Found rate > 100';
+                    console.warn(`Validation Error for ${bank.name}: Found rate > 100. Discarding all results.`);
+                } else {
+                    table.rows.forEach(row => {
+                        row.rates.forEach((rate, colIdx) => {
+                            if (rate !== null && rate > 0) {
+                                const header = table.headers[colIdx];
+                                allFlattenedRows.push([
+                                    executionDate,
+                                    result.bank,
+                                    result.desc,
+                                    rate,
+                                    header.minAmount || 0,
+                                    header.maxAmount || 999999999,
+                                    row.minDays || 0,
+                                    row.maxDays || 99999,
+                                    bank.url
+                                ]);
+                            }
+                        });
                     });
-                });
-                rowCount = allFlattenedRows.length - bankRowsBefore;
-                console.log(`Extracted table for ${result.bank}: ${rowCount} entries found.`);
+                    rowCount = allFlattenedRows.length - bankRowsBefore;
+                    console.log(`Extracted table for ${result.bank}: ${rowCount} entries found.`);
+                }
             } else if (result.status === 'ERROR' || result.status === 'TIMEOUT') {
                 console.warn(`No data extracted for ${bank.name}. Status: ${result.status} ${errorMessage}`);
             }
