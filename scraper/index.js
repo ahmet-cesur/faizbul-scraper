@@ -258,8 +258,14 @@ async function main() {
         ]);
 
         console.log('Successfully updated Sheet 2 logs!');
+
+        if (successCount < banks.length) {
+            const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
+            throw new Error(`Scraper failed for some banks: ${failedBanks.join(', ')}. This will trigger an email notification via GitHub Actions.`);
+        }
     } catch (e) {
-        console.error('Error writing to Google Sheets:', e.message);
+        console.error('Scraper Error:', e.message);
+        throw e; // Re-throw to ensure the process exits with code 1
     }
 
     await browser.close();
