@@ -12,6 +12,9 @@ module.exports = {
                     // Skip invisible or tiny tables
                     if (table.offsetParent === null || table.rows.length < 2) continue;
 
+                    // Explicitly skip "Kiraz Hesap" tables
+                    if (table.innerText.includes('Kiraz') || (table.closest('.accordion__content') && table.closest('.accordion__content').previousElementSibling.innerText.includes('Kiraz'))) continue;
+
                     var rows = Array.from(table.querySelectorAll('tr'));
                     var headerCells = Array.from(rows[0].querySelectorAll('th, td'));
                     if (headerCells.length < 2) continue;
