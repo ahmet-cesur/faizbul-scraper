@@ -766,12 +766,19 @@ async function main() {
     ];
 
     const allFlattenedRows = [];
+    const executionLogs = [];
     const executionDate = new Date().toISOString();
+    const startTime = Date.now();
 
     for (const bank of banks) {
-        console.log(`--- Scoping \${bank.name} ---`);
+        console.log(`--- Scraping ${bank.name} ---`);
+        const bankStartTime = Date.now();
+        let bankStatus = 'PENDING';
+        let rowCount = 0;
+        let errorMessage = '';
+
         try {
-            await page.goto(bank.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            await page.goto(bank.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
             const result = await page.evaluate((commonJs, bankScript, bankDesc, bankName) => {
                 return new Promise((resolve) => {
@@ -794,15 +801,17 @@ async function main() {
                     } catch (e) {
                         resolve({ status: 'ERROR', error: e.toString() });
                     }
-                    setTimeout(() => resolve({ status: 'TIMEOUT' }), 35000);
+                    setTimeout(() => resolve({ status: 'TIMEOUT' }), 45000);
                 });
             }, commonJs, bank.script, bank.desc, bank.name);
 
-            console.log(`Result: \${result.status} \${result.error || ''}`);
+            console.log(`Result: ${result.status} ${result.error || ''}`);
+            bankStatus = result.status;
+            errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
                 const table = JSON.parse(result.json);
-                console.log(`Extracted table for \${result.bank}: \${table.rows.length} rows`);
+                const bankRowsBefore = allFlattenedRows.length;
                 table.rows.forEach(row => {
                     row.rates.forEach((rate, colIdx) => {
                         if (rate !== null && rate > 0) {
@@ -821,25 +830,62 @@ async function main() {
                         }
                     });
                 });
-            } else {
-                console.warn(`No data extracted for \${bank.name}. Status: \${result.status} \${result.error || ''}`);
+                rowCount = allFlattenedRows.length - bankRowsBefore;
+                console.log(`Extracted table for ${result.bank}: ${rowCount} entries found.`);
+            } else if (result.status === 'ERROR' || result.status === 'TIMEOUT') {
+                console.warn(`No data extracted for ${bank.name}. Status: ${result.status} ${errorMessage}`);
             }
         } catch (e) {
-            console.error(`Error for \${bank.name}:`, e.message);
+            bankStatus = 'FATAL';
+            errorMessage = e.message;
+            console.error(`Fatal Error for ${bank.name}:`, e.message);
+        } finally {
+            const duration = ((Date.now() - bankStartTime) / 1000).toFixed(1);
+            executionLogs.push([
+                executionDate,
+                bank.name,
+                bankStatus,
+                rowCount,
+                `${duration}s`,
+                errorMessage
+            ]);
         }
     }
 
-    console.log(`\nExtracted \${allFlattenedRows.length} total rate entries.`);
+    const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\nScraping Finished. Total entries: ${allFlattenedRows.length}. Total time: ${totalDuration}s`);
 
-    if (allFlattenedRows.length > 0) {
-        console.log('Updating Google Sheet...');
-        const sheet = doc.sheetsByIndex[0];
+    try {
+        // Update Sheet 1 (Raw Data)
+        if (allFlattenedRows.length > 0) {
+            console.log('Updating Data Sheet (Sheet 1)...');
+            const dataSheet = doc.sheetsByIndex[0];
+            await dataSheet.addRows(allFlattenedRows);
+            console.log('Successfully updated Sheet 1!');
+        }
 
-        // Clear existing data (optional, but good for fresh full table)
-        // sheet.clear(); await sheet.setHeaderRow(['Date', 'Bank', 'Description', 'Rate', 'MinAmount', 'MaxAmount', 'MinDays', 'MaxDays', 'URL']);
+        // Update Sheet 2 (Logs)
+        console.log('Updating Log Sheet (Sheet 2)...');
+        let logSheet = doc.sheetsByTitle['Logs'];
+        if (!logSheet) {
+            logSheet = await doc.addSheet({ title: 'Logs', headerValues: ['Date', 'Bank', 'Status', 'Rows', 'Duration', 'Error'] });
+        }
+        await logSheet.addRows(executionLogs);
 
-        await sheet.addRows(allFlattenedRows);
-        console.log('Successfully updated Google Sheet!');
+        // Add a summary row for this run
+        const successCount = executionLogs.filter(l => l[2] === 'SUCCESS').length;
+        await logSheet.addRow([
+            executionDate,
+            '--- RUN SUMMARY ---',
+            `${successCount}/${banks.length} Success`,
+            allFlattenedRows.length,
+            `${totalDuration}s`,
+            `Build: FaizBul Scraper Engine v2.0`
+        ]);
+
+        console.log('Successfully updated Sheet 2 logs!');
+    } catch (e) {
+        console.error('Error writing to Google Sheets:', e.message);
     }
 
     await browser.close();
