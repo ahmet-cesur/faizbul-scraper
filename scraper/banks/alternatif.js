@@ -1,0 +1,55 @@
+module.exports = {
+    name: "Alternatif Bank",
+    url: "https://www.alternatifbank.com.tr/bilgi-merkezi/faiz-oranlari#mevduat",
+    desc: "E-Mevduat TRY",
+    script: `(function() {
+        try {
+            var amount = 100000; var duration = 32; var attempts = 0;
+            \n            function extractAlternatifTable() {
+                var tables = document.querySelectorAll('table');
+                for (var t = 0; t < tables.length; t++) {
+                    var table = tables[t]; var rect = table.getBoundingClientRect(); if (rect.width === 0 || rect.height === 0) continue;
+                    var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
+                    
+                    var headerRow = rows[0];
+                    var headerText = headerRow.innerText.toUpperCase();
+                    if (!headerText.includes('VADE')) continue;
+                    
+                    // Check previous header or container for "MEVDUAT" or similar to avoid Credits
+                    var containerText = table.parentElement ? table.parentElement.innerText.toUpperCase() : '';
+                    if (!table.innerText.toUpperCase().includes('MEVDUAT') && !containerText.includes('MEVDUAT')) continue;
+
+                    var headerCells = rows[0].querySelectorAll('td, th');
+                    var headers = [];
+                    var hasValidHeader = false;
+                    for (var i = 1; i < headerCells.length; i++) {
+                        var txt = headerCells[i].innerText.trim();
+                        var min = smartParseNumber(txt);
+                        if (min > 0) hasValidHeader = true;
+                        headers.push({ label: txt, minAmount: smartParseNumber(txt), maxAmount: 999999999 });
+                    }
+                    if (!hasValidHeader) continue;
+
+                    var tableRows = [];
+                    for (var r = 1; r < rows.length; r++) {
+                        var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
+                        var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                        if (!durParsed) continue;
+                        var rowRates = []; for (var c = 1; c < cells.length; c++) rowRates.push(smartParseNumber(cells[c].innerText));
+                        tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                    }
+                    if (tableRows.length > 0) {
+                        Android.sendRateWithTable(tableRows[0].rates[0], 'E-Mevduat TRY', 'Alternatif Bank', JSON.stringify({headers: headers, rows: tableRows}));
+                        return true;
+                    }
+                }
+                return false;
+            }
+            var interval = setInterval(function() {
+                if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                if (extractAlternatifTable()) clearInterval(interval);
+                if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+            }, 800);
+        } catch(e) { Android.sendError('PARSING_ERROR'); }
+    })()`
+};
