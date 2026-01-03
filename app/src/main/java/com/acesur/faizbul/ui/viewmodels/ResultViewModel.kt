@@ -21,7 +21,8 @@ class ResultViewModel : ViewModel() {
     val retryCounts = mutableStateMapOf<String, Int>()
     
     var isInitialized = false
-    var isAppInBackground = false // This would ideally be updated by Lifecycle observer
+    var isAppInBackground = false
+    var isRefreshing = androidx.compose.runtime.mutableStateOf(false)
 
     fun initScrapers(context: android.content.Context, amount: Double, days: Int) {
         if (isInitialized) return
@@ -54,8 +55,35 @@ class ResultViewModel : ViewModel() {
         
         android.util.Log.d("FaizBul", "Added ${resultsMap.size} scrapers to resultsMap immediately")
 
-        // Then launch coroutine to load cached data and build queue
+        // Launch coroutine to load data
         viewModelScope.launch {
+            loadAllData(context, amount, days)
+        }
+    }
+
+    fun refreshFromSheet(context: android.content.Context, amount: Double, days: Int) {
+        viewModelScope.launch {
+            isRefreshing.value = true
+            loadAllData(context, amount, days)
+            isRefreshing.value = false
+        }
+    }
+
+    private suspend fun loadAllData(context: android.content.Context, amount: Double, days: Int) {
+        val prefs = context.getSharedPreferences("scraper_prefs", android.content.Context.MODE_PRIVATE)
+        val allScrapers = ScraperSpec.allScrapers.filter { spec ->
+            prefs.getBoolean(spec.name, true)
+        }
+
+        // Calculate start of today for stale check
+        val calendar = java.util.Calendar.getInstance()
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        calendar.set(java.util.Calendar.MINUTE, 0)
+        calendar.set(java.util.Calendar.SECOND, 0)
+        calendar.set(java.util.Calendar.MILLISECOND, 0)
+        val todayStart = calendar.timeInMillis
+
+        // Then launch coroutine to load cached data and build queue
             // New Step: Try fetching from Google Sheet first
             val sheetRates = try {
                 GoogleSheetRepository.fetchRates()
@@ -152,12 +180,10 @@ class ResultViewModel : ViewModel() {
                 //     scrapersToQueue.add(spec)
                 // }
             }
-            
-            android.util.Log.d("FaizBul", "Final ResultsMap size: ${resultsMap.size}, Queue size: ${scrapersToQueue.size}")
-            
-            // Shuffle and add stale scrapers to queue
-            // executionQueue.addAll(scrapersToQueue.shuffled())
-        }
+        android.util.Log.d("FaizBul", "Final ResultsMap size: ${resultsMap.size}, Queue size: ${scrapersToQueue.size}")
+        
+        // Shuffle and add stale scrapers to queue
+        // executionQueue.addAll(scrapersToQueue.shuffled())
     }
     
     // Mark the current scraper as actively working
@@ -293,42 +319,11 @@ class ResultViewModel : ViewModel() {
     }
 
     fun stopScraping(amount: Double, days: Int) {
-        viewModelScope.launch {
-            resultsMap.keys.forEach { name ->
-                val r = resultsMap[name]
-                if (r != null && (r.status == ScraperStatus.WAITING || r.status == ScraperStatus.WORKING)) {
-                    // Try to use cached data
-                    val cachedRate = if (r.lastSuccessfulRate != null) {
-                        val calc = calculateDetailedEarnings(amount, r.lastSuccessfulRate, days)
-                        InterestRate(
-                            bankName = r.spec.bankName,
-                            description = r.spec.description,
-                            rate = r.lastSuccessfulRate,
-                            earnings = calc.net,
-                            grossEarnings = calc.gross,
-                            taxRate = calc.taxRate,
-                            url = r.spec.url
-                        )
-                    } else null
-                    
-                    resultsMap[name] = r.copy(
-                        status = ScraperStatus.FAILED, 
-                        errorMessage = "Kullanıcı tarafından durduruldu",
-                        rate = cachedRate,
-                        isUsingCachedRate = cachedRate != null
-                    )
-                }
-            }
-            executionQueue.clear()
-        }
+        executionQueue.clear()
     }
 
     fun retryScraper(spec: ScraperSpec) {
-        retryCounts[spec.name] = 0
-        resultsMap[spec.name] = resultsMap[spec.name]!!.copy(status = ScraperStatus.WAITING, errorMessage = null)
-        if (!executionQueue.contains(spec)) {
-            executionQueue.add(spec)
-        }
+        // No-op - direct scraping disabled
     }
 
     private fun removeFromQueue(spec: ScraperSpec) {

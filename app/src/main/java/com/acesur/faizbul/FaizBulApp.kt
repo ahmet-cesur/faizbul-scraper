@@ -22,9 +22,11 @@ class FaizBulApp : Application() {
         NotificationHelper.createNotificationChannel(this)
         
         // Schedule background updates (runs hourly when WiFi is ON)
-        BackgroundUpdateWorker.schedule(this)
+        // BackgroundUpdateWorker.schedule(this)
         
         com.acesur.faizbul.ui.theme.ThemeManager.init(this)
+        com.acesur.faizbul.util.AdPrefs.init(this)
+        com.acesur.faizbul.util.DevPrefs.init(this)
     }
 }
 

@@ -57,7 +57,8 @@ fun SettingsPage(navController: NavController) {
                 title = { 
                     Text(
                         stringResource(R.string.settings),
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     ) 
                 },
                 navigationIcon = {
@@ -170,6 +171,7 @@ fun SettingsPage(navController: NavController) {
                             "Görünüm Ayarları",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
                         )
                         
@@ -199,6 +201,7 @@ fun SettingsPage(navController: NavController) {
                                 Text(
                                     label, 
                                     style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f)
                                 )
                                 if (currentThemeMode == mode) {
@@ -379,7 +382,8 @@ fun SettingsCard(
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     subtitle,

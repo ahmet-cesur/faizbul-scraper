@@ -109,7 +109,7 @@ fun BankSelectionPage(navController: NavController) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(scraper.bankName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            Text(scraper.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                            Text(scraper.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(
                             checked = isChecked,

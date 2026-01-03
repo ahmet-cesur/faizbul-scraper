@@ -45,6 +45,7 @@ val VakifbankGold = Color(0xFFD4AF37)
 val AlternatifMaroon = Color(0xFF9E0D49)
 val OdeabankBlack = Color(0xFF1A1A1A)
 val DenizbankBlue = Color(0xFF0033A0)
+val FibabankaNavy = Color(0xFF003D7C)
 
 // Bank brand colors - Dark Mode Variants (Lighter for contrast)
 // These are lightened versions of the original brands to be visible on dark backgrounds
@@ -59,6 +60,7 @@ val VakifbankGoldDark = Color(0xFFFDE047)     // Bright Yellow
 val AlternatifMaroonDark = Color(0xFFF472B6)  // Pink
 val OdeabankDark = Color(0xFFE2E8F0)          // Slate 200 (Off-white)
 val DenizbankBlueDark = Color(0xFF7DD3FC)     // Light Sky Blue
+val FibabankaNavyDark = Color(0xFF818CF8)     // Indigo 400
 
 // Gradient colors
 val TealGradient = Color(0xFF14B8A6)

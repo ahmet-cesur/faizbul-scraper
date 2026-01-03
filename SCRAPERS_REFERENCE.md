@@ -23,6 +23,7 @@ This document contains all bank scraper configurations for quick reference and r
 | Alternatif Bank | Alternatif Bank | Maroon (#9E0D49) | `getAlternatifBankJs` |
 | Odeabank | Odeabank | Black (#1A1A1A) | `getOdeabankJs` |
 | DenizBank | Denizbank | Blue (#0033A0) | `getDenizbankJs` |
+| Fibabanka | Fibabanka | Navy (#003D7C) | `getFibabankaJs` |
 
 ---
 
@@ -193,6 +194,18 @@ This document contains all bank scraper configurations for quick reference and r
   - Page uses a dual-header structure; scraper searches for the row containing amount ranges.
   - Standard table: Vade (rows) x Amount tiers (columns).
   - Handles various duration labels like "32-45 gün".
+  
+### 16. Fibabanka
+- **URL**: `https://www.fibabanka.com.tr/faiz-ucret-ve-komisyonlar/bireysel-faiz-oranlari/mevduat-faiz-oranlari`
+- **Description**: e-Mevduat
+- **Bank Name**: Fibabanka
+- **Method**: `ScraperScripts.getFibabankaJs(amount, days, description)`
+- **Color**: FibabankaNavy (#003D7C)
+- **Notes**:
+  - Click accordion header `h2.accordion__title` containing "e-Mevduat" to reveal data
+  - Extracts from table within `.fiba-long-table` container
+  - Standard table: Vade (rows) x Amount tiers (columns)
+  - Result card uses `FibabankaNavy` (#003D7C) in light mode and `FibabankaNavyDark` (#818CF8) in dark mode
 
 ---
 
@@ -268,6 +281,7 @@ val VakifbankGold = Color(0xFFD4AF37)
 val AlternatifMaroon = Color(0xFF9E0D49)
 val OdeabankBlack = Color(0xFF1A1A1A)
 val DenizbankBlue = Color(0xFF0033A0)
+val FibabankaNavy = Color(0xFF003D7C)
 ```
 
 ---
@@ -281,4 +295,4 @@ val DenizbankBlue = Color(0xFF0033A0)
 
 ---
 
-*Last Updated: 2025-12-27*
+*Last Updated: 2026-01-03*

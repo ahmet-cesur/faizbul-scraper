@@ -64,31 +64,7 @@ fun ResultPage(
         viewModel.initScrapers(context, inputAmount, durationDays)
     }
 
-    // Active Scraper (WebView Pooling - Only one at a time)
-    val currentScraper = viewModel.executionQueue.firstOrNull()
-
-    if (currentScraper != null) {
-        // Mark scraper as working when it becomes active
-        LaunchedEffect(currentScraper.name) {
-            viewModel.markAsWorking(currentScraper)
-        }
-        
-        val retryKey = viewModel.retryCounts[currentScraper.name] ?: 0
-        key(currentScraper.name, retryKey) {
-            RateFetcher(
-                url = currentScraper.url,
-                description = currentScraper.description,
-                bankName = currentScraper.bankName,
-                amount = inputAmount,
-                durationDays = durationDays,
-                customJsScript = currentScraper.customJs,
-                timeoutMs = currentScraper.timeoutMs,
-                onRateFound = { result -> 
-                    viewModel.onRateFound(context, currentScraper, result, inputAmount, durationDays)
-                }
-            )
-        }
-    }
+    // Local scraping component removed - only reading Google Sheets now
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -113,6 +89,28 @@ fun ResultPage(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri")
                     }
                 },
+                actions = {
+                    val isRefreshing by viewModel.isRefreshing
+                    if (isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        IconButton(
+                            onClick = { viewModel.refreshFromSheet(context, inputAmount, durationDays) },
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Yenile", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 )
@@ -133,23 +131,9 @@ fun ResultPage(
                 Text(
                     text = String.format(java.util.Locale.getDefault(), stringResource(R.string.search_header_format), inputAmount, durationDays),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-
-                if (viewModel.executionQueue.isNotEmpty()) {
-                    OutlinedButton(
-                        onClick = { viewModel.stopScraping(inputAmount, durationDays) },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.stop_searching), style = MaterialTheme.typography.labelMedium)
-                    }
-                }
             }
 
             val sortedResults = viewModel.resultsMap.values.sortedWith(
@@ -325,7 +309,7 @@ fun SessionBestCard(rate: InterestRate) {
 
 @Composable
 fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isBestDeal: Boolean, onRetry: () -> Unit) {
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.background == NavyDark
     
     val brandColor = when {
         state.spec.bankName.contains("Garanti") -> if (isDarkTheme) GarantiGreenDark else GarantiGreen
@@ -339,6 +323,7 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
         state.spec.bankName.contains("Alternatif") -> if (isDarkTheme) AlternatifMaroonDark else AlternatifMaroon
         state.spec.bankName.contains("Odeabank") -> if (isDarkTheme) OdeabankDark else OdeabankBlack
         state.spec.bankName.contains("Denizbank") || state.spec.bankName.contains("DenizBank") -> if (isDarkTheme) DenizbankBlueDark else DenizbankBlue
+        state.spec.bankName.contains("Fibabanka") -> if (isDarkTheme) FibabankaNavyDark else FibabankaNavy
         else -> if (isDarkTheme) Emerald400 else Emerald500
     }
 
@@ -399,8 +384,14 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
         else -> brandColor.copy(alpha = 0.3f)
     }
 
-    // Card background: yellow if updating stale data, or if using cached data
-    val showYellowBackground = isShowingCachedData || (isActivelyWorking && state.rate != null)
+    // Contrast-aware text colors
+    val cardContentColor = when {
+        isShowingCachedData && !isDarkTheme -> Color.Black
+        isDarkTheme -> Color.White
+        else -> Color.Black
+    }
+    val cardSecondaryColor = cardContentColor.copy(alpha = 0.7f)
+    val cardOutlineColor = cardContentColor.copy(alpha = 0.5f)
 
     Card(
         modifier = Modifier
@@ -415,7 +406,7 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
             .then(if (state.rate != null) Modifier.clickable { isExpanded = !isExpanded } else Modifier),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (showYellowBackground) Color(0xFFFFF9C4) else MaterialTheme.colorScheme.surface
+            containerColor = if (isShowingCachedData && !isDarkTheme) Color(0xFFFFF9C4) else MaterialTheme.colorScheme.surface
         ),
         border = androidx.compose.foundation.BorderStroke(
             width = if (isActivelyWorking) 2.dp else if (isBestDeal && (state.status == ScraperStatus.SUCCESS || isShowingCachedData)) 2.dp else 1.dp, 
@@ -480,7 +471,7 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                         Text(
                             text = " • Son Güncelleme: $dateStr",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = cardSecondaryColor
                         )
                     }
                 }
@@ -513,12 +504,12 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                         text = state.spec.bankName, 
                         style = MaterialTheme.typography.titleMedium, 
                         fontWeight = FontWeight.Bold,
-                        color = brandColor // Always use brand color if we have data
+                        color = cardContentColor
                     )
                     Text(
                         text = state.spec.description, 
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = cardSecondaryColor
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -547,33 +538,13 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                             Text(
                                 text = "Güncelleme: $updateText",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (showYellowBackground) Color(0xFFFF8F00) else MaterialTheme.colorScheme.outline
+                                color = if (isShowingCachedData && !isDarkTheme) Color(0xFF616161) else cardOutlineColor
                             )
-                        } else if (state.status != ScraperStatus.WORKING && state.status != ScraperStatus.WAITING) {
-                            Text(
-                                text = "Henüz güncellenmedi",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        // Refresh button (only show when not currently working)
-                        if (state.status != ScraperStatus.WORKING && state.status != ScraperStatus.WAITING) {
-                            IconButton(
-                                onClick = onRetry,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = "Yenile",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = brandColor
-                                )
-                            }
                         }
                     }
                 }
                 
-                // Right side (Current rate or Progress)
+                // Right side (Current rate)
                 when (state.status) {
                     ScraperStatus.WORKING -> {
                         Column(horizontalAlignment = Alignment.End) {
@@ -581,22 +552,21 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                                 // Show cached rate while updating
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     val formattedRate = formatRate(state.rate.rate)
-                                    // Use brandColor for consistency
-                                    Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = brandColor, fontWeight = FontWeight.Bold)
-                                    Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = brandColor)
+                                    Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                                    Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
-                                    color = brandColor.copy(alpha = shimmerAlpha)
+                                    color = cardContentColor.copy(alpha = shimmerAlpha)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Güncelleniyor...",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = brandColor.copy(alpha = shimmerAlpha)
+                                    color = cardContentColor.copy(alpha = shimmerAlpha)
                                 )
                             }
                         }
@@ -604,8 +574,8 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                     ScraperStatus.SUCCESS -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val formattedRate = formatRate(state.rate?.rate ?: 0.0)
-                            Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = brandColor, fontWeight = FontWeight.Bold)
-                            Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = brandColor)
+                            Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                            Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
                         }
                     }
                     ScraperStatus.FAILED -> {
@@ -613,8 +583,8 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                             // We have a calculated cached rate - treat mostly like success but with valid brand colors
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 val formattedRate = formatRate(state.rate.rate)
-                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = brandColor, fontWeight = FontWeight.Bold)
-                                Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = brandColor)
+                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                                Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
                             }
                         } else if (hasHistory) {
                             // History but no detailed calculation (shouldn't happen with new logic, but fallback)
@@ -628,12 +598,12 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                         Column(horizontalAlignment = Alignment.End) {
                             if (hasHistory) {
                                 val formattedRate = formatRate(state.lastSuccessfulRate ?: 0.0)
-                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), fontWeight = FontWeight.Bold)
+                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = if (isShowingCachedData && !isDarkTheme) Color.Black.copy(0.4f) else cardOutlineColor, fontWeight = FontWeight.Bold)
                             }
                             Text(
                                 text = "Sırada...",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)
+                                color = cardSecondaryColor
                             )
                         }
                     }
@@ -651,9 +621,6 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                 }
 
                 Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = brandColor)) {
-                        Text(stringResource(R.string.try_again))
-                    }
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                     OutlinedButton(onClick = { uriHandler.openUri(state.spec.url) }) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -678,10 +645,10 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                     // Use brand color for display to match success look
                     val displayColor = brandColor
                     
-                    DetailRow(stringResource(R.string.label_gross_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", gross))
-                    DetailRow(stringResource(R.string.label_tax_rate), formatRate(taxRate * 100))
-                    DetailRow(stringResource(R.string.label_net_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", net))
-                    DetailRow(stringResource(R.string.label_total), String.format(java.util.Locale.getDefault(), "%,.2f TL", amount + net), color = displayColor, isBold = true)
+                    DetailRow(stringResource(R.string.label_gross_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", gross), color = cardContentColor)
+                    DetailRow(stringResource(R.string.label_tax_rate), formatRate(taxRate * 100), color = cardContentColor)
+                    DetailRow(stringResource(R.string.label_net_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", net), color = cardContentColor)
+                    DetailRow(stringResource(R.string.label_total), String.format(java.util.Locale.getDefault(), "%,.2f TL", amount + net), color = cardContentColor, isBold = true)
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -730,10 +697,10 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
 }
 
 @Composable
-fun DetailRow(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface, isBold: Boolean = false) {
+fun DetailRow(label: String, value: String, color: Color = Color.Unspecified, isBold: Boolean = false) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = color, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (color == Color.Unspecified) MaterialTheme.colorScheme.onSurface else color)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = if (color == Color.Unspecified) MaterialTheme.colorScheme.onSurface else color, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
@@ -866,7 +833,7 @@ fun RateTableDialog(
                         Text(
                             text = "Sorgu: $amountStr TL • $durationDays Gün",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = onDismiss) {
@@ -881,9 +848,10 @@ fun RateTableDialog(
                     val hScrollState = rememberScrollState()
                     val vScrollState = rememberScrollState()
                     
-                    // Highlight color
-                    val highlightColor = Color(0xFF4CAF50) // Green
-                    val highlightBgColor = Color(0xFFE8F5E9) // Light green background
+                    // Highlight colors
+                    val isDark = MaterialTheme.colorScheme.background == NavyDark
+                    val highlightColor = if (isDark) Emerald400 else Color(0xFF4CAF50)
+                    val highlightBgColor = if (isDark) Emerald700.copy(alpha = 0.4f) else Color(0xFFE8F5E9)
                     
                     // Scrollable table
                     Row(
@@ -938,7 +906,7 @@ fun RateTableDialog(
                                         text = row.label,
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = if (isMatchingRow) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isMatchingRow) highlightColor else Color.Unspecified,
+                                        color = if (isMatchingRow) highlightColor else MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.width(100.dp).padding(8.dp)
                                     )
                                     // Rate cells
@@ -948,7 +916,7 @@ fun RateTableDialog(
                                             text = if (rate != null) formatRate(rate) else "-",
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = if (isHighlightedCell) FontWeight.ExtraBold else FontWeight.Normal,
-                                            color = if (isHighlightedCell) Color.White else Color.Unspecified,
+                                            color = if (isHighlightedCell) Color.White else MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier
                                                 .width(90.dp)
                                                 .background(
@@ -998,14 +966,14 @@ fun DateInfoBanner(durationDays: Int) {
                     Icons.Default.DateRange, 
                     contentDescription = null, 
                     modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.width(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Valör: ",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = dateInfo.valorDate,
@@ -1017,14 +985,23 @@ fun DateInfoBanner(durationDays: Int) {
                     Text(
                         text = "Vade Sonu: ",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = dateInfo.maturityDate,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
+            }
+            if (dateInfo.isDelayed && dateInfo.reason != null) {
+                Text(
+                    text = dateInfo.reason,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp, start = 32.dp)
+                )
             }
         }
     }

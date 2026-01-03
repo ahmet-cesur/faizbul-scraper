@@ -107,14 +107,16 @@ class BackgroundUpdateWorker(
             return Result.success()
         }
         
-        // Start the foreground service to perform updates
-        try {
-            BackgroundUpdateService.startService(context)
-            Log.d(TAG, "Started BackgroundUpdateService")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start BackgroundUpdateService", e)
-            return Result.failure()
-        }
+        // BackgroundUpdateService is disabled to prioritize Server-Side scraping
+        // try {
+        //     BackgroundUpdateService.startService(context)
+        //     Log.d(TAG, "Started BackgroundUpdateService")
+        // } catch (e: Exception) {
+        //     Log.e(TAG, "Failed to start BackgroundUpdateService", e)
+        //     return Result.failure()
+        // }
+        
+        Log.d(TAG, "Background local scraping is disabled. Use GitHub Actions for updates.")
         
         return Result.success()
     }

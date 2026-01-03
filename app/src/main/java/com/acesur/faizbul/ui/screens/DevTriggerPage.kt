@@ -7,6 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,7 +23,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DevTriggerPage(navController: NavController) {
-    var githubToken by remember { mutableStateOf("") }
+    val savedToken by com.acesur.faizbul.util.DevPrefs.githubToken.collectAsState()
+    var githubToken by remember(savedToken) { mutableStateOf(savedToken) }
     var statusMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -62,14 +65,56 @@ fun DevTriggerPage(navController: NavController) {
             
             OutlinedTextField(
                 value = githubToken,
-                onValueChange = { githubToken = it },
+                onValueChange = { 
+                    githubToken = it
+                    com.acesur.faizbul.util.DevPrefs.setGithubToken(it)
+                },
                 label = { Text("GitHub Token") },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("ghp_...") },
                 shape = RoundedCornerShape(12.dp)
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Ad Toggle Section
+            val adsEnabled by com.acesur.faizbul.util.AdPrefs.adsEnabled.collectAsState()
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Enable Ads",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Show/Hide banners and interstitials",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Switch(
+                        checked = adsEnabled,
+                        onCheckedChange = { com.acesur.faizbul.util.AdPrefs.setAdsEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Emerald500,
+                            checkedTrackColor = Emerald500.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
             
             if (statusMessage.isNotEmpty()) {
                 Text(

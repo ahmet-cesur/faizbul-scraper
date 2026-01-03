@@ -288,10 +288,10 @@ async function main() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
                     \n                    function extractEnparaTable() {
-                        var table = document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || document.querySelector('.enpara-deposit-interest-rates__flex-table');
+                        var table = document.querySelector('.enpara-deposit-interest-rates__flex-table--active') || document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || document.querySelector('.enpara-deposit-interest-rates__flex-table');
                         if (!table) return false;
                         var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item'));
-                        if (allItems.length < 10) return false;
+                        if (allItems.length < 5) return false;
                         var durationHeaders = [];
                         for (var i = 1; i <= 4 && i < allItems.length; i++) {
                             var headEl = allItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head');
@@ -418,9 +418,9 @@ async function main() {
             })()`
         },
         {
-            name: "Yapı Kredi",
+            name: "Yapı Kredi - Standart",
             url: "https://www.yapikredi.com.tr/bireysel-bankacilik/hesaplama-araclari/e-mevduat-faizi-hesaplama",
-            desc: "e-Mevduat / Yeni Param",
+            desc: "e-Mevduat",
             script: `(function() {
                 try {
                     var amt = 100000; var dur = 32; var step = 0; var attempts = 0;
@@ -446,6 +446,34 @@ async function main() {
             })()`
         },
         {
+            name: "Yapı Kredi - Yeni Param",
+            url: "https://www.yapikredi.com.tr/bireysel-bankacilik/hesaplama-araclari/e-mevduat-faizi-hesaplama",
+            desc: "Yeni Param (Hoş Geldin)",
+            script: `(function() {
+                try {
+                    var amt = 100000; var dur = 32; var step = 0; var attempts = 0;
+                    \n                    function runApi(isStandard, desc) {
+                        if (typeof $ === 'undefined' || typeof $.Page === 'undefined' || typeof $.Page.GetCalculationTool === 'undefined') return false;
+                        $.Page.GetCalculationTool(isStandard, "YTL").done(function(response) {
+                            try {
+                                if (!response || !response.Data || !response.Data.RateList) return;
+                                var rateData = response.Data.RateList[0];
+                                var headers = rateData.RateLevelList.map(v => ({ label: v.Description, minAmount: v.MinAmount, maxAmount: v.MaxAmount }));
+                                var tableRows = rateData.GroupedRateList.map(g => ({ label: g.StartTenor + "-" + g.EndTenor + " Gün", minDays: g.StartTenor, maxDays: g.EndTenor, rates: g.Rates }));
+                                Android.sendRateWithTable(tableRows[0].rates[0], desc, 'Yapı Kredi', JSON.stringify({headers: headers, rows: tableRows}));
+                            } catch(e) { Android.sendError('PARSING_ERROR'); }
+                        });
+                        return true;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (runApi(false, 'Yeni Param (Hoş Geldin)')) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
             name: "İş Bankası",
             url: "https://www.isbank.com.tr/vadeli-tl",
             desc: "İşCep Vadeli TL",
@@ -460,7 +488,7 @@ async function main() {
                         return cell.innerText.trim();
                     }
                     function findIsBankasiRate() {
-                        var tables = document.querySelectorAll('table');
+                        var tables = Array.from(document.querySelectorAll('table.ISB_table_basic')).concat(Array.from(document.querySelectorAll('table')));
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t];
                             var headerRow = table.querySelector('thead tr') || table.rows[0];
@@ -584,7 +612,7 @@ async function main() {
                     var interval = setInterval(function() {
                         if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                         if (step === 0) {
-                            var btn = Array.from(document.querySelectorAll('a.btn')).find(b => b.innerText.includes('Tanışma'));
+                            var btn = document.querySelector('.btn.btn-outline-gray.mobileHoverFix') || Array.from(document.querySelectorAll('a.btn, button')).find(b => b.innerText.includes('Tanışma'));
                             if (btn) btn.click();
                             step = 1;
                         } else {
@@ -655,6 +683,7 @@ async function main() {
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rect = table.getBoundingClientRect(); if (rect.width === 0 || rect.height === 0) continue;
                             var rows = table.querySelectorAll('tr'); if (rows.length < 3 || !rows[0].innerText.toUpperCase().includes('VADE')) continue;
+                            if (table.innerText.toUpperCase().indexOf('MEVDUAT') === -1) continue;
                             var headerCells = rows[0].querySelectorAll('td, th');
                             var headers = [];
                             for (var i = 1; i < headerCells.length; i++) {
@@ -760,6 +789,61 @@ async function main() {
                         if (extractDenizbankTable()) clearInterval(interval);
                         if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
                     }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Fibabanka",
+            url: "https://www.fibabanka.com.tr/faiz-ucret-ve-komisyonlar/bireysel-faiz-oranlari/mevduat-faiz-oranlari",
+            desc: "e-Mevduat",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+                    function extractFibabankaTable() {
+                        var container = document.querySelector('.fiba-long-table');
+                        if (!container) return false;
+                        var table = container.querySelector('table');
+                        if (!table) return false;
+                        var rows = Array.from(table.querySelectorAll('tr'));
+                        if (rows.length < 2) return false;
+                        var headerCells = Array.from(rows[0].querySelectorAll('th, td'));
+                        var headers = [];
+                        for (var i = 1; i < headerCells.length; i++) {
+                            var txt = headerCells[i].innerText.trim();
+                            var parts = txt.replace(/TL/gi, '').split('-');
+                            var min = smartParseNumber(parts[0]);
+                            var max = parts.length > 1 ? smartParseNumber(parts[1]) : 999999999;
+                            headers.push({ label: txt, minAmount: min, maxAmount: max });
+                        }
+                        var tableRows = [];
+                        for (var r = 1; r < rows.length; r++) {
+                            var cells = Array.from(rows[r].querySelectorAll('td, th'));
+                            if (cells.length < 2) continue;
+                            var durTxt = cells[0].innerText.trim();
+                            var durParsed = parseDuration(durTxt);
+                            var rowRates = [];
+                            for (var c = 1; c < cells.length; c++) {
+                                var rate = smartParseNumber(cells[c].innerText);
+                                rowRates.push(isNaN(rate) ? null : rate);
+                            }
+                            tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                        }
+                        if (tableRows.length > 0) {
+                            Android.sendRateWithTable(tableRows[0].rates[0], 'e-Mevduat', 'Fibabanka', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (step === 0) {
+                            var btn = Array.from(document.querySelectorAll('h2.accordion__title')).find(h => h.innerText.includes('e-Mevduat'));
+                            if (btn) { btn.click(); step = 1; }
+                        } else {
+                            if (extractFibabankaTable()) clearInterval(interval);
+                        }
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 1000);
                 } catch(e) { Android.sendError('PARSING_ERROR'); }
             })()`
         }

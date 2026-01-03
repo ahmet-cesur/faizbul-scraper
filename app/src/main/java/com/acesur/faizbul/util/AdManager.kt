@@ -27,6 +27,12 @@ class AdManager(private val context: Context) {
     }
 
     fun showInterstitial(activity: Activity, onAdDismissed: () -> Unit = {}) {
+        val adsEnabled = AdPrefs.adsEnabled.value
+        if (!adsEnabled) {
+            onAdDismissed()
+            return
+        }
+        
         if (interstitialAd != null) {
             interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
                 override fun onAdDismissedFullScreenContent() {

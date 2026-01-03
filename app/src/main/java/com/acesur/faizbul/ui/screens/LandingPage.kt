@@ -287,7 +287,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.5).sp
                 ),
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onSurface
             )
             
             Spacer(modifier = Modifier.height(8.dp))
@@ -295,7 +295,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
             Text(
                 text = stringResource(id = R.string.landing_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center
             )
 
@@ -339,7 +339,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                     Text(
                         "gün",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 },
                 onFocusChange = { if (it) duration = "" }
@@ -512,7 +512,7 @@ fun PremiumTextField(
             label = { 
                 Text(
                     label,
-                    color = if (isFocused) Emerald500 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = if (isFocused) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 ) 
             },
             leadingIcon = leadingIcon,

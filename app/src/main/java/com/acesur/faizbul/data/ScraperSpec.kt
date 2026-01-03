@@ -56,7 +56,8 @@ data class ScraperSpec(
             ScraperSpec("VakıfBank - Standart", "https://www.vakifbank.com.tr/tr/hesaplama-araclari/mevduat-faiz-oranlari", "E-Vadeli Hesabı", "VakıfBank", { a, d -> ScraperScripts.getVakifbankEVadeliJs(a, d, "E-Vadeli Hesabı") }),
             ScraperSpec("Alternatif Bank", "https://www.alternatifbank.com.tr/bilgi-merkezi/faiz-oranlari#mevduat", "E-Mevduat TRY", "Alternatif Bank", { a, d -> ScraperScripts.getAlternatifBankJs(a, d, "E-Mevduat TRY") }),
             ScraperSpec("Odeabank", "https://www.odeabank.com.tr/bireysel/mevduat/vadeli-mevduat", "İnternet/Mobil Vadeli", "Odeabank", { a, d -> ScraperScripts.getOdeabankJs(a, d, "İnternet/Mobil Vadeli") }),
-            ScraperSpec("Denizbank", "https://www.denizbank.com/hesap/e-mevduat", "E-Mevduat", "DenizBank", { a, d -> ScraperScripts.getDenizbankJs(a, d, "E-Mevduat") })
+            ScraperSpec("Denizbank", "https://www.denizbank.com/hesap/e-mevduat", "E-Mevduat", "DenizBank", { a, d -> ScraperScripts.getDenizbankJs(a, d, "E-Mevduat") }),
+            ScraperSpec("Fibabanka", "https://www.fibabanka.com.tr/faiz-ucret-ve-komisyonlar/bireysel-faiz-oranlari/mevduat-faiz-oranlari", "e-Mevduat", "Fibabanka", { a, d -> ScraperScripts.getFibabankaJs(a, d, "e-Mevduat") })
         )
     }
 }
@@ -2115,6 +2116,84 @@ object ScraperScripts {
                         Android.sendError('NO_MATCH');
                     }
                 }, 500);
+            } catch(e) { Android.sendError('PARSING_ERROR'); }
+        })();
+    """.trimIndent()
+
+    fun getFibabankaJs(amount: Double, days: Int, description: String = "e-Mevduat") = """
+        (function() {
+            try {
+                var amount = $amount; var duration = $days; var step = 0; var attempts = 0;
+                ${smartParseNumberJs}
+                ${parseDurationJs}
+                ${checkBotDetectionJs}
+                
+                function extractFibabankaTable() {
+                    var container = document.querySelector('.fiba-long-table');
+                    if (!container) return false;
+                    var table = container.querySelector('table');
+                    if (!table) return false;
+                    var rows = Array.from(table.querySelectorAll('tr'));
+                    if (rows.length < 2) return false;
+                    var headerCells = Array.from(rows[0].querySelectorAll('th, td'));
+                    var headers = [];
+                    var colIndex = -1;
+                    var bestMinAmount = -1;
+
+                    for (var i = 1; i < headerCells.length; i++) {
+                        var txt = headerCells[i].innerText.trim();
+                        var parts = txt.replace(/TL/gi, '').split('-');
+                        var min = smartParseNumber(parts[0]);
+                        var max = parts.length > 1 ? smartParseNumber(parts[1]) : 999999999;
+                        headers.push({ label: txt, minAmount: min, maxAmount: max });
+                        if (min <= amount && min > bestMinAmount) {
+                            bestMinAmount = min;
+                            colIndex = i;
+                        }
+                    }
+                    
+                    if (colIndex === -1) return false;
+
+                    var tableRows = [];
+                    var bestRowIndex = -1;
+                    var bestMinDays = -1;
+
+                    for (var r = 1; r < rows.length; r++) {
+                        var cells = Array.from(rows[r].querySelectorAll('td, th'));
+                        if (cells.length < 2) continue;
+                        var durTxt = cells[0].innerText.trim();
+                        var durParsed = parseDuration(durTxt);
+                        var rowRates = [];
+                        for (var c = 1; c < cells.length; c++) {
+                            var rate = smartParseNumber(cells[c].innerText);
+                            rowRates.push(isNaN(rate) ? null : rate);
+                        }
+                        tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                        if (durParsed && durParsed.min <= duration && durParsed.min > bestMinDays) {
+                            bestMinDays = durParsed.min;
+                            bestRowIndex = tableRows.length - 1;
+                        }
+                    }
+                    
+                    if (bestRowIndex > -1) {
+                        var bestRate = tableRows[bestRowIndex].rates[colIndex - 1];
+                        if (bestRate && bestRate > 0) {
+                            Android.sendRateWithTable(bestRate, '$description', 'Fibabanka', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                var interval = setInterval(function() {
+                    if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                    if (step === 0) {
+                        var btn = Array.from(document.querySelectorAll('h2.accordion__title')).find(h => h.innerText.includes('e-Mevduat'));
+                        if (btn) { btn.click(); step = 1; }
+                    } else {
+                        if (extractFibabankaTable()) clearInterval(interval);
+                    }
+                    if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                }, 1000);
             } catch(e) { Android.sendError('PARSING_ERROR'); }
         })();
     """.trimIndent()
