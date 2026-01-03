@@ -468,7 +468,7 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                             Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Black)
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                text = "Geçmiş Oran",
+                                text = "Eski Veri",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.Black,
                                 fontWeight = FontWeight.Bold
@@ -476,9 +476,9 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                         }
                     }
                     if (state.tableTimestamp != null) {
-                        val dateStr = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.getDefault()).format(java.util.Date(state.tableTimestamp))
+                        val dateStr = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(state.tableTimestamp))
                         Text(
-                            text = " • Güncelleme: $dateStr",
+                            text = " • Son Güncelleme: $dateStr",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary
                         )

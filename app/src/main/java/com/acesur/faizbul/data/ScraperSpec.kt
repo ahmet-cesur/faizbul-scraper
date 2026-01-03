@@ -11,7 +11,8 @@ data class InterestRate(
     val minAmount: Double = 0.0,
     val maxAmount: Double = 999999999.0,
     val minDays: Int = 0,
-    val maxDays: Int = 99999
+    val maxDays: Int = 99999,
+    val timestamp: Long = 0L
 )
 
 enum class ScraperStatus { WAITING, WORKING, SUCCESS, FAILED }

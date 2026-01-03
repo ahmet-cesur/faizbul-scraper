@@ -2,8 +2,8 @@ name: Interest Rate Scraper
 
 on:
   schedule:
-    # Run every day at 09:00 UTC
-    - cron: '0 9 * * *'
+    # Run every 3 hours
+    - cron: '0 */3 * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:

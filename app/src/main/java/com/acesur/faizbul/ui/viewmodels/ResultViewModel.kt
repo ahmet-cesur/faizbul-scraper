@@ -69,10 +69,13 @@ class ResultViewModel : ViewModel() {
             allScrapers.forEach { spec ->
                 android.util.Log.d("FaizBul", "Processing scraper: ${spec.name}")
                 
-                // 1. Check Google Sheet Data
-                val sheetRate = sheetRates.find { 
+                // 1. Check Google Sheet Data with Bracket Matching
+                val sheetRate = sheetRates.filter { 
                     it.bankName == spec.bankName && 
-                    (it.description == spec.description || spec.description.contains(it.description)) 
+                    (it.description == spec.description || spec.description.contains(it.description) || it.description.contains(spec.description)) 
+                }.find { 
+                    amount >= it.minAmount && amount <= it.maxAmount &&
+                    days >= it.minDays && days <= it.maxDays
                 }
                 
                 if (sheetRate != null && sheetRate.rate > 0) {
@@ -81,16 +84,19 @@ class ResultViewModel : ViewModel() {
                         earnings = calc.net,
                         grossEarnings = calc.gross,
                         taxRate = calc.taxRate,
-                        // sheetRate.url might be generic, prefer spec.url if empty
                         url = if (sheetRate.url.isNotEmpty()) sheetRate.url else spec.url
                      )
+                     
+                     val isSheetRateStale = sheetRate.timestamp < todayStart
                      
                      resultsMap[spec.name] = ScraperResultState(
                         spec = spec,
                         status = ScraperStatus.SUCCESS,
-                        rate = finalRate
+                        rate = finalRate,
+                        isUsingCachedRate = isSheetRateStale,
+                        tableTimestamp = sheetRate.timestamp
                     )
-                    android.util.Log.d("FaizBul", "Used Google Sheet rate for ${spec.name}")
+                    android.util.Log.d("FaizBul", "Matched Google Sheet rate for ${spec.name}: ${sheetRate.rate} (Stale: $isSheetRateStale)")
                     return@forEach // Skip caching/queue logic for this scraper
                 }
 
@@ -141,15 +147,16 @@ class ResultViewModel : ViewModel() {
                 android.util.Log.d("FaizBul", "Updated ${spec.name}, status=${if (cachedRate != null && !isStale) "SUCCESS" else "WAITING"}")
                 
                 // Queue stale or missing tables for update
-                if (isStale) {
-                    scrapersToQueue.add(spec)
-                }
+                // Queue logic disabled - prioritizing Server-Side scraping
+                // if (isStale) {
+                //     scrapersToQueue.add(spec)
+                // }
             }
             
             android.util.Log.d("FaizBul", "Final ResultsMap size: ${resultsMap.size}, Queue size: ${scrapersToQueue.size}")
             
             // Shuffle and add stale scrapers to queue
-            executionQueue.addAll(scrapersToQueue.shuffled())
+            // executionQueue.addAll(scrapersToQueue.shuffled())
         }
     }
     

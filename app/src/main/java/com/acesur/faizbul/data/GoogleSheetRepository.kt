@@ -22,15 +22,17 @@ object GoogleSheetRepository {
             reader.readLine() // Skip header
             
             var line: String? 
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }
+            
             while (reader.readLine().also { line = it } != null) {
                 if (line.isNullOrBlank()) continue
                 
                 val tokens = parseCsvLine(line!!)
-                // Updated Column mappings for the new Matrix scraper format:
-                // 0: Date, 1: Bank, 2: Description, 3: Rate, 4: MinAmount, 5: MaxAmount, 
-                // 6: MinDays, 7: MaxDays, 8: URL
                 if (tokens.size >= 9) {
                    try {
+                       val dateStr = tokens[0]
                        val bank = tokens[1]
                        val desc = tokens[2]
                        val rate = tokens[3].toDoubleOrNull() ?: 0.0
@@ -39,6 +41,8 @@ object GoogleSheetRepository {
                        val minDays = tokens[6].toIntOrNull() ?: 0
                        val maxDays = tokens[7].toIntOrNull() ?: 99999
                        val urlStr = tokens[8]
+                       
+                       val timestamp = try { sdf.parse(dateStr)?.time ?: 0L } catch(e: Exception) { 0L }
                        
                        rates.add(InterestRate(
                            bankName = bank,
@@ -49,7 +53,8 @@ object GoogleSheetRepository {
                            minAmount = minAmount,
                            maxAmount = maxAmount,
                            minDays = minDays,
-                           maxDays = maxDays
+                           maxDays = maxDays,
+                           timestamp = timestamp
                        ))
                    } catch (e: Exception) {
                        e.printStackTrace()
