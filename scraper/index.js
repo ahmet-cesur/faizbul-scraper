@@ -319,21 +319,27 @@ async function main() {
                             var headEl = allItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head');
                             if (headEl) {
                                 var daysTxt = headEl.innerText.trim();
+                                if (!daysTxt.toLowerCase().includes('gün')) continue;
                                 var daysNum = parseInt(daysTxt.replace(/[^0-9]/g, ''));
                                 durationHeaders.push({ label: daysTxt, minDays: daysNum, maxDays: daysNum });
                             }
                         }
+                        if (durationHeaders.length === 0) return false;
+                        
                         var tableRows = []; var headers = [];
                         for (var rowStart = 5; rowStart < allItems.length; rowStart += 5) {
                             var amountItem = allItems[rowStart]; if (!amountItem) continue;
                             var valEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value'); if (!valEl) continue;
                             var amountTxt = valEl.innerText.trim();
+                            if (!amountTxt.includes('TL') && !amountTxt.match(/\d/)) continue;
+                            
                             var minAmt = 0, maxAmt = 999999999;
                             if (amountTxt.indexOf('-') > -1) {
                                 var parts = amountTxt.split('-');
                                 minAmt = smartParseNumber(parts[0]);
                                 maxAmt = smartParseNumber(parts[1]);
-                            } else if (amountTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(amountTxt); }
+                            } else if (amountTxt.match(/[\d+]/)) { minAmt = smartParseNumber(amountTxt); }
+                            
                             headers.push({ label: amountTxt, minAmount: minAmt, maxAmount: maxAmt });
                             var rowRates = [];
                             for (var c = 1; c <= 4 && (rowStart + c) < allItems.length; c++) {
@@ -342,6 +348,8 @@ async function main() {
                             }
                             tableRows.push({ label: amountTxt, rates: rowRates });
                         }
+                        if (tableRows.length < 1) return false;
+                        
                         var outputHeaders = headers;
                         var outputRows = durationHeaders.map(function(d, dIdx) {
                             return { label: d.label, minDays: d.minDays, maxDays: d.maxDays, rates: tableRows.map(function(r) { return r.rates[dIdx]; }) };
@@ -365,21 +373,28 @@ async function main() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
                     \n                    function extractAkbankTable() {
-                        var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet'));
+                        var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet') || t.innerText.includes('Tanışma'));
                         if (!table) return false;
                         var rows = table.rows; if (!rows || rows.length < 3) return false;
-                        var headers = [];
+                        var headers = []; 
+                        var hasValidHeader = false;
                         for (var i = 1; i < rows[0].cells.length; i++) {
                             var cellTxt = rows[0].cells[i].innerText.trim();
                             var minAmt = 0, maxAmt = 999999999;
                             if (cellTxt.indexOf('-') > -1) { var p = cellTxt.split('-'); minAmt = smartParseNumber(p[0]); maxAmt = smartParseNumber(p[1]); }
-                            else if (cellTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(cellTxt); }
+                            else if (cellTxt.match(/[\d+]/)) { minAmt = smartParseNumber(cellTxt); }
+                            
+                            if (minAmt > 0) hasValidHeader = true;
                             headers.push({ label: cellTxt, minAmount: minAmt, maxAmount: maxAmt });
                         }
+                        if (!hasValidHeader) return false;
+
                         var tableRows = [];
                         for (var r = 1; r < rows.length; r++) {
                             var cells = rows[r].cells; if (cells.length < 2) continue;
                             var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                            if (!durParsed) continue;
+                            
                             var rowRates = [];
                             for (var c = 1; c < cells.length; c++) {
                                 var rate = smartParseNumber(cells[c].innerText);
@@ -387,6 +402,8 @@ async function main() {
                             }
                             tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                         }
+                        if(tableRows.length === 0) return false;
+                        
                         Android.sendRateWithTable(tableRows[0].rates[0], 'Tanışma Faizi', 'Akbank', JSON.stringify({headers: headers, rows: tableRows}));
                         return true;
                     }
@@ -406,21 +423,26 @@ async function main() {
                 try {
                     var amount = 100000; var duration = 32; var attempts = 0;
                     \n                    function extractAkbankTable() {
-                        var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet'));
+                        var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet') && t.innerText.includes('Gün'));
                         if (!table) return false;
                         var rows = table.rows; if (!rows || rows.length < 3) return false;
                         var headers = [];
+                        var hasValidHeader = false;
                         for (var i = 1; i < rows[0].cells.length; i++) {
                             var cellTxt = rows[0].cells[i].innerText.trim();
                             var minAmt = 0, maxAmt = 999999999;
                             if (cellTxt.indexOf('-') > -1) { var p = cellTxt.split('-'); minAmt = smartParseNumber(p[0]); maxAmt = smartParseNumber(p[1]); }
-                            else if (cellTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(cellTxt); }
+                            else if (cellTxt.match(/[\d+]/)) { minAmt = smartParseNumber(cellTxt); }
+                            if (minAmt > 0) hasValidHeader = true;
                             headers.push({ label: cellTxt, minAmount: minAmt, maxAmount: maxAmt });
                         }
+                        if (!hasValidHeader) return false;
+
                         var tableRows = [];
                         for (var r = 1; r < rows.length; r++) {
                             var cells = rows[r].cells; if (cells.length < 2) continue;
                             var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                            if (!durParsed) continue;
                             var rowRates = [];
                             for (var c = 1; c < cells.length; c++) {
                                 var rate = smartParseNumber(cells[c].innerText);
@@ -428,6 +450,8 @@ async function main() {
                             }
                             tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                         }
+                        if(tableRows.length === 0) return false;
+
                         Android.sendRateWithTable(tableRows[0].rates[0], 'Standart Vadeli', 'Akbank', JSON.stringify({headers: headers, rows: tableRows}));
                         return true;
                     }
@@ -515,18 +539,25 @@ async function main() {
                             var table = tables[t];
                             var headerRow = table.querySelector('thead tr') || table.rows[0];
                             if (!headerRow || !headerRow.innerText.toLowerCase().includes('vade')) continue;
+                            if (table.innerText.toLowerCase().includes('kredi')) continue; // Avoid loan tables
                             var headerCells = headerRow.querySelectorAll('th, td');
                             var headers = [];
+                            var hasValidHeader = false;
                             for (var i = 1; i < headerCells.length; i++) {
                                 var txt = headerCells[i].innerText.trim();
                                 var min = smartParseNumber(txt);
+                                if (min > 0 || txt.includes('TL')) hasValidHeader = true;
                                 headers.push({ label: txt, minAmount: min, maxAmount: 999999999 });
                             }
+                            if (!hasValidHeader) continue;
+
                             var dataRows = table.querySelectorAll('tbody tr'); if (dataRows.length === 0) dataRows = Array.from(table.rows).slice(1);
                             var tableRows = [];
                             for (var r = 0; r < dataRows.length; r++) {
                                 var cells = dataRows[r].querySelectorAll('td'); if (cells.length < 2) continue;
                                 var durTxt = getCellValue(cells[0]); var durParsed = parseDuration(durTxt);
+                                if (!durParsed) continue;
+                                
                                 var rowRates = [];
                                 for (var c = 1; c < cells.length; c++) {
                                     var rate = smartParseNumber(getCellValue(cells[c]));
@@ -635,8 +666,7 @@ async function main() {
                         if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                         if (step === 0) {
                             var btn = document.querySelector('.btn.btn-outline-gray.mobileHoverFix') || Array.from(document.querySelectorAll('a.btn, button')).find(b => b.innerText.includes('Tanışma'));
-                            if (btn) btn.click();
-                            step = 1;
+                            if (btn) { btn.click(); step = 1; }
                         } else {
                             if (extractVakifbankTable()) clearInterval(interval);
                         }
@@ -683,8 +713,7 @@ async function main() {
                         if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                         if (step === 0) {
                             var btn = Array.from(document.querySelectorAll('a.btn')).find(b => b.innerText.includes('E-Vadeli'));
-                            if (btn) btn.click();
-                            step = 1;
+                            if (btn) { btn.click(); step = 1; }
                         } else {
                             if (extractVakifbankTable()) clearInterval(interval);
                         }
@@ -704,23 +733,39 @@ async function main() {
                         var tables = document.querySelectorAll('table');
                         for (var t = 0; t < tables.length; t++) {
                             var table = tables[t]; var rect = table.getBoundingClientRect(); if (rect.width === 0 || rect.height === 0) continue;
-                            var rows = table.querySelectorAll('tr'); if (rows.length < 3 || !rows[0].innerText.toUpperCase().includes('VADE')) continue;
-                            if (table.innerText.toUpperCase().indexOf('MEVDUAT') === -1) continue;
+                            var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
+                            
+                            var headerRow = rows[0];
+                            var headerText = headerRow.innerText.toUpperCase();
+                            if (!headerText.includes('VADE')) continue;
+                            
+                            // Check previous header or container for "MEVDUAT" or similar to avoid Credits
+                            var containerText = table.parentElement ? table.parentElement.innerText.toUpperCase() : '';
+                            if (!table.innerText.toUpperCase().includes('MEVDUAT') && !containerText.includes('MEVDUAT')) continue;
+
                             var headerCells = rows[0].querySelectorAll('td, th');
                             var headers = [];
+                            var hasValidHeader = false;
                             for (var i = 1; i < headerCells.length; i++) {
                                 var txt = headerCells[i].innerText.trim();
+                                var min = smartParseNumber(txt);
+                                if (min > 0) hasValidHeader = true;
                                 headers.push({ label: txt, minAmount: smartParseNumber(txt), maxAmount: 999999999 });
                             }
+                            if (!hasValidHeader) continue;
+
                             var tableRows = [];
                             for (var r = 1; r < rows.length; r++) {
                                 var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
                                 var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                                if (!durParsed) continue;
                                 var rowRates = []; for (var c = 1; c < cells.length; c++) rowRates.push(smartParseNumber(cells[c].innerText));
                                 tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                             }
-                            Android.sendRateWithTable(0, 'E-Mevduat TRY', 'Alternatif Bank', JSON.stringify({headers: headers, rows: tableRows}));
-                            return true;
+                            if (tableRows.length > 0) {
+                                Android.sendRateWithTable(tableRows[0].rates[0], 'E-Mevduat TRY', 'Alternatif Bank', JSON.stringify({headers: headers, rows: tableRows}));
+                                return true;
+                            }
                         }
                         return false;
                     }
