@@ -241,7 +241,10 @@ async function main() {
                             if (rows.length < 2) continue;
                             var headerCells = rows[0].querySelectorAll('th, td');
                             if (headerCells.length < 2) continue;
+                            
                             var headers = [];
+                            var headerContainsValidAmount = false;
+                            
                             for (var i = 1; i < headerCells.length; i++) {
                                 var txt = headerCells[i].innerText.trim();
                                 var minAmt = 0, maxAmt = 999999999;
@@ -249,9 +252,17 @@ async function main() {
                                     var parts = txt.split('-');
                                     minAmt = smartParseNumber(parts[0]);
                                     maxAmt = smartParseNumber(parts[1]);
-                                } else if (txt.match(/[\\d+]/)) { minAmt = smartParseNumber(txt); }
+                                } else if (txt.match(/[\d+]/)) { minAmt = smartParseNumber(txt); }
+                                
+                                if (txt.indexOf('TL') > -1 || minAmt > 100) {
+                                    headerContainsValidAmount = true;
+                                }
+                                
                                 headers.push({ label: txt, minAmount: minAmt, maxAmount: maxAmt });
                             }
+                            
+                            if (!headerContainsValidAmount) continue;
+
                             var tableRows = [];
                             for (var r = 1; r < rows.length; r++) {
                                 var cells = rows[r].querySelectorAll('td, th');
