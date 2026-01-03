@@ -3,23 +3,15 @@ const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 require('dotenv').config();
 
-// Sheet ID from the user: https://docs.google.com/spreadsheets/d/1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY/edit
 const SPREADSHEET_ID = '1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY';
 
 async function main() {
     console.log('Starting Scraper...');
 
-    // 0. Validate Env Vars
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
-        throw new Error('Missing GOOGLE_SERVICE_ACCOUNT_EMAIL env var');
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+        throw new Error('Missing Google Service Account credentials');
     }
-    if (!process.env.GOOGLE_PRIVATE_KEY) {
-        throw new Error('Missing GOOGLE_PRIVATE_KEY env var');
-    }
-    console.log('Environment variables check passed.');
 
-    // 1. Setup Google Sheets Auth
-    console.log('Setting up Google Sheets Auth...');
     const serviceAccountAuth = new JWT({
         email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
         key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -27,29 +19,17 @@ async function main() {
     });
 
     const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    console.log(`Connected to Sheet: ${doc.title}`);
 
-    try {
-        console.log('Loading Sheet Info...');
-        await doc.loadInfo();
-        console.log(`Loaded doc: ${doc.title}`);
-    } catch (e) {
-        console.error('FAILED to connect to Google Sheet. Check permissions and ID.');
-        console.error(e.message);
-        throw e;
-    }
-
-    // 2. Setup Puppeteer
-    console.log('Launching Puppeteer...');
     const browser = await puppeteer.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
-    console.log('Browser launched successfully.');
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
 
-    // --- Helper Functions to Inject ---
     const commonJs = `
         window.smartParseNumber = function(str) {
             if (!str) return NaN;
@@ -121,222 +101,694 @@ async function main() {
         };
     `;
 
-    // --- Banks Definition ---
-    // script: The JS code to run in the page. It MUST emit success/error via window.Android.
     const banks = [
         {
             name: "Ziraat Bankası",
-            url: "https://www.ziraatbank.com.tr/tr/bireysel/mevduat/vadeli-hesaplar/vadeli-tl-mevduat-hesapi",
+            url: "https://www.ziraatbank.com.tr/tr/bireysel/mevduat/vadeli-hesaplar/vadeli-tl-mevduat-hesaplari/vadeli-tl-mevduat-hesabi",
             desc: "İnternet Şubesi Vadeli TL",
-            script: `
-                var step = 0;
-                var attempts = 0;
-                var interval = setInterval(function() {
-                    try {
-                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                        
-                        if (step === 0) {
-                            var accordion = document.querySelector('button#accordion1');
-                            if (!accordion) { 
-                                var btns = document.querySelectorAll('button');
-                                for(var i=0; i<btns.length; i++) if(btns[i].innerText.indexOf('Vadeli Türk Lirası Mevduat')>-1) accordion=btns[i];
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+                    \${commonJs}
+                    function parseAmountRange(txt) {
+                        var val = txt.replace('TL', '').replace('ve üzeri', '').trim();
+                        if (val.indexOf('-') > -1) {
+                            var parts = val.split('-');
+                            return { min: smartParseNumber(parts[0]), max: smartParseNumber(parts[1]) };
+                        }
+                        return { min: smartParseNumber(val), max: 999999999 };
+                    }
+                    function extractZiraatTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t];
+                            var tbody = table.querySelector('tbody');
+                            var allRows = tbody ? tbody.querySelectorAll('tr') : table.rows;
+                            if (!allRows || allRows.length < 3) continue;
+                            var headerRow = allRows[0];
+                            var headerCells = headerRow.querySelectorAll('td, th');
+                            if (headerCells.length < 4) continue;
+                            var headerText = headerRow.innerText.toLowerCase();
+                            if (headerText.indexOf('vade') === -1) continue;
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var cellTxt = headerCells[i].innerText.trim();
+                                var amtRange = parseAmountRange(cellTxt);
+                                headers.push({ label: cellTxt, minAmount: amtRange.min, maxAmount: amtRange.max });
                             }
+                            var tableRows = [];
+                            for (var r = 1; r < allRows.length; r++) {
+                                var row = allRows[r];
+                                var cells = row.querySelectorAll('td, th');
+                                if (cells.length < 2) continue;
+                                var durTxt = cells[0].innerText.trim();
+                                var durParsed = parseDuration(durTxt);
+                                var rowRates = [];
+                                for (var c = 1; c < cells.length; c++) {
+                                    var rate = smartParseNumber(cells[c].innerText);
+                                    rowRates.push(isNaN(rate) ? null : rate);
+                                }
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            Android.sendRateWithTable(tableRows[0].rates[0], 'İnternet Şubesi Vadeli TL', 'Ziraat Bankası', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (step === 0) {
+                            var accordion = document.querySelector('button#accordion1') || Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Vadeli Türk Lirası'));
                             if (accordion && accordion.getAttribute('aria-expanded') !== 'true') accordion.click();
                             step = 1;
                         } else if (step === 1) {
-                            var lbl = document.querySelector('label[for="rdIntBranchVadeliTL"]');
-                            if(!lbl) { 
-                                var labels = document.querySelectorAll('label');
-                                for(var i=0; i<labels.length; i++) if(labels[i].innerText.indexOf('İnternet Şube')>-1) lbl=labels[i];
-                            }
-                            if(lbl) lbl.click();
+                            var radioLabel = document.querySelector('label[for="rdIntBranchVadeliTL"]') || Array.from(document.querySelectorAll('label')).find(l => l.innerText.includes('İnternet Şube'));
+                            if (radioLabel) radioLabel.click();
                             step = 2;
                         } else if (step === 2) {
-                            // Extract Rate - simplified for PoC: Find a 32-day rate
-                            var tables = document.querySelectorAll('table');
-                            for(var t=0; t<tables.length; t++) {
-                                var tbl = tables[t];
-                                if(tbl.innerText.toLowerCase().indexOf('vade') === -1) continue;
-                                var rows = tbl.querySelectorAll('tr');
-                                for(var r=0; r<rows.length; r++) {
-                                    var txt = rows[r].innerText;
-                                    if(txt.indexOf('32') > -1 && txt.indexOf('45') > -1) { 
-                                        // Found a typical row (e.g. 32-45 days)
-                                        // Extract exact rate by parsing cells
-                                        var cells = rows[r].cells;
-                                        for(var c=1; c<cells.length; c++) {
-                                            var val = smartParseNumber(cells[c].innerText);
-                                            if(val > 0 && val < 100) {
-                                                Android.sendRateWithTable(val, 'İnternet Şubesi Vadeli TL', 'Ziraat Bankası', '{}');
-                                                clearInterval(interval);
-                                                return;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            if (extractZiraatTable()) clearInterval(interval);
                         }
-                    } catch(e) { /* ignore */ }
-                    if(++attempts > 30) { clearInterval(interval); Android.sendError('NO_MATCH'); }
-                }, 800);
-            `
+                        if (++attempts > 60) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
         },
         {
-            name: "Garanti BBVA",
+            name: "Garanti BBVA - Hoş Geldin",
+            url: "https://www.garantibbva.com.tr/mevduat/hos-geldin-faizi",
+            desc: "Hoş Geldin Faizi",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractGarantiTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t];
+                            var rows = table.querySelectorAll('tr');
+                            if (rows.length < 2) continue;
+                            var headerCells = rows[0].querySelectorAll('th, td');
+                            if (headerCells.length < 2) continue;
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                var minAmt = 0, maxAmt = 999999999;
+                                if (txt.indexOf('-') > -1) {
+                                    var parts = txt.split('-');
+                                    minAmt = smartParseNumber(parts[0]);
+                                    maxAmt = smartParseNumber(parts[1]);
+                                } else if (txt.match(/[\\d+]/)) { minAmt = smartParseNumber(txt); }
+                                headers.push({ label: txt, minAmount: minAmt, maxAmount: maxAmt });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th');
+                                if (cells.length < headerCells.length) continue;
+                                var durTxt = cells[0].innerText.trim();
+                                var durParsed = parseDuration(durTxt);
+                                var rowRates = [];
+                                for (var c = 1; c < cells.length; c++) {
+                                    var rate = smartParseNumber(cells[c].innerText);
+                                    rowRates.push(isNaN(rate) ? null : rate);
+                                }
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            if (tableRows.length > 1) {
+                                Android.sendRateWithTable(tableRows[0].rates[0], 'Hoş Geldin Faizi', 'Garanti BBVA', JSON.stringify({headers: headers, rows: tableRows}));
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractGarantiTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Garanti BBVA - Standart",
             url: "https://www.garantibbva.com.tr/mevduat/e-vadeli-hesap",
             desc: "Standart E-Vadeli",
-            script: `
-                var attempts = 0;
-                var interval = setInterval(function() {
-                     if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                     var tables = document.querySelectorAll('table');
-                     for (var t=0; t<tables.length; t++) {
-                         var rows = tables[t].querySelectorAll('tr');
-                         for(var r=0; r<rows.length; r++) {
-                             if(rows[r].innerText.indexOf('32') > -1) {
-                                  var best = 0;
-                                  var cells = rows[r].cells;
-                                  for(var c=1; c<cells.length; c++) {
-                                      var val = smartParseNumber(cells[c].innerText);
-                                      if(!isNaN(val) && val > best && val < 100) best = val;
-                                  }
-                                  if(best > 0) {
-                                      Android.sendRateWithTable(best, 'Standart E-Vadeli', 'Garanti BBVA', '{}');
-                                      clearInterval(interval);
-                                      return;
-                                  }
-                             }
-                         }
-                     }
-                     if(++attempts > 20) { clearInterval(interval); Android.sendError('NO_MATCH'); }
-                 }, 500);
-            `
-        },
-        {
-            name: "Akbank",
-            url: "https://www.akbank.com/kampanyalar/vadeli-mevduat-tanisma-kampanyasi",
-            desc: "Tanışma Faizi",
-            script: `
-                var attempts = 0;
-                var interval = setInterval(function() {
-                    if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                    var table = document.querySelector('table.faizTablo');
-                    if(!table) {
-                        var all = document.querySelectorAll('table');
-                        for(var i=0; i<all.length; i++) if(all[i].innerText.indexOf('Akbank İnternet')>-1) table=all[i];
-                    }
-                    if(table) {
-                        var rows = table.rows;
-                        for(var r=1; r<rows.length; r++) {
-                            if(rows[r].innerText.indexOf('32') > -1) {
-                                 var items = rows[r].cells;
-                                 var best=0;
-                                 for(var c=1; c<items.length; c++) {
-                                     var v = smartParseNumber(items[c].innerText);
-                                     if(v > best && v < 100) best=v;
-                                 }
-                                 if(best>0) {
-                                     Android.sendRateWithTable(best, 'Tanışma Faizi', 'Akbank', '{}');
-                                     clearInterval(interval);
-                                     return;
-                                 }
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractGarantiTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t];
+                            var rows = table.querySelectorAll('tr');
+                            if (rows.length < 2) continue;
+                            var headerCells = rows[0].querySelectorAll('th, td');
+                            if (headerCells.length < 2) continue;
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                var minAmt = 0, maxAmt = 999999999;
+                                if (txt.indexOf('-') > -1) {
+                                    var parts = txt.split('-');
+                                    minAmt = smartParseNumber(parts[0]);
+                                    maxAmt = smartParseNumber(parts[1]);
+                                } else if (txt.match(/[\\d+]/)) { minAmt = smartParseNumber(txt); }
+                                headers.push({ label: txt, minAmount: minAmt, maxAmount: maxAmt });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th');
+                                if (cells.length < headerCells.length) continue;
+                                var durTxt = cells[0].innerText.trim();
+                                var durParsed = parseDuration(durTxt);
+                                var rowRates = [];
+                                for (var c = 1; c < cells.length; c++) {
+                                    var rate = smartParseNumber(cells[c].innerText);
+                                    rowRates.push(isNaN(rate) ? null : rate);
+                                }
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            if (tableRows.length > 1) {
+                                Android.sendRateWithTable(tableRows[0].rates[0], 'Standart E-Vadeli', 'Garanti BBVA', JSON.stringify({headers: headers, rows: tableRows}));
+                                return true;
                             }
                         }
+                        return false;
                     }
-                    if(++attempts>20) { clearInterval(interval); Android.sendError('NO_MATCH'); }
-                }, 500);
-            `
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractGarantiTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
         },
         {
             name: "Enpara",
             url: "https://www.enpara.com/hesaplar/vadeli-mevduat-hesabi",
             desc: "Vadeli Mevduat",
-            script: `
-                var attempts = 0;
-                var interval = setInterval(function() {
-                    if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                    
-                    var table = document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY');
-                    if (!table) table = document.querySelector('.enpara-deposit-interest-rates__flex-table');
-                    
-                    if (table) {
-                        var items = table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item');
-                        // Enpara table is div-based. Item 1-4 are headers.
-                        // We check simple text match for 32 Days
-                        for(var i=0; i<items.length; i++) {
-                             if(items[i].innerText.indexOf('32 Gün') > -1) {
-                                 // The rate is usually in the same column index in subsequent rows
-                                 // Simplified: Just grab the max number found in the rate cells
-                                 // Real implementation needs robust column mapping (skipped for brevity)
-                                 
-                                 // Fallback: look for "enpara-deposit-interest-rates__flex-table-value" with "%"
-                                 var values = table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-value');
-                                 var best = 0;
-                                 for(var v=0; v<values.length; v++) {
-                                     var txt = values[v].innerText;
-                                     if(txt.indexOf('%') > -1) {
-                                         var n = smartParseNumber(txt);
-                                         if(n > best && n < 100) best = n;
-                                     }
-                                 }
-                                 if(best > 0) {
-                                     Android.sendRateWithTable(best, 'Vadeli Mevduat', 'Enpara.com', '{}');
-                                     clearInterval(interval);
-                                     return;
-                                 }
-                             }
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractEnparaTable() {
+                        var table = document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || document.querySelector('.enpara-deposit-interest-rates__flex-table');
+                        if (!table) return false;
+                        var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item'));
+                        if (allItems.length < 10) return false;
+                        var durationHeaders = [];
+                        for (var i = 1; i <= 4 && i < allItems.length; i++) {
+                            var headEl = allItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head');
+                            if (headEl) {
+                                var daysTxt = headEl.innerText.trim();
+                                var daysNum = parseInt(daysTxt.replace(/[^0-9]/g, ''));
+                                durationHeaders.push({ label: daysTxt, minDays: daysNum, maxDays: daysNum });
+                            }
                         }
+                        var tableRows = []; var headers = [];
+                        for (var rowStart = 5; rowStart < allItems.length; rowStart += 5) {
+                            var amountItem = allItems[rowStart]; if (!amountItem) continue;
+                            var valEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value'); if (!valEl) continue;
+                            var amountTxt = valEl.innerText.trim();
+                            var minAmt = 0, maxAmt = 999999999;
+                            if (amountTxt.indexOf('-') > -1) {
+                                var parts = amountTxt.split('-');
+                                minAmt = smartParseNumber(parts[0]);
+                                maxAmt = smartParseNumber(parts[1]);
+                            } else if (amountTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(amountTxt); }
+                            headers.push({ label: amountTxt, minAmount: minAmt, maxAmount: maxAmt });
+                            var rowRates = [];
+                            for (var c = 1; c <= 4 && (rowStart + c) < allItems.length; c++) {
+                                var rateValEl = allItems[rowStart + c].querySelector('.enpara-deposit-interest-rates__flex-table-value');
+                                rowRates.push(rateValEl ? smartParseNumber(rateValEl.innerText) : null);
+                            }
+                            tableRows.push({ label: amountTxt, rates: rowRates });
+                        }
+                        var outputHeaders = headers;
+                        var outputRows = durationHeaders.map(function(d, dIdx) {
+                            return { label: d.label, minDays: d.minDays, maxDays: d.maxDays, rates: tableRows.map(function(r) { return r.rates[dIdx]; }) };
+                        });
+                        Android.sendRateWithTable(outputRows[0].rates[0], 'Vadeli Mevduat', 'Enpara.com', JSON.stringify({headers: outputHeaders, rows: outputRows}));
+                        return true;
                     }
-                    if(++attempts > 20) { clearInterval(interval); Android.sendError('NO_MATCH'); }
-                }, 500);
-            `
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractEnparaTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Akbank - Tanışma",
+            url: "https://www.akbank.com/kampanyalar/vadeli-mevduat-tanisma-kampanyasi",
+            desc: "Tanışma Faizi",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractAkbankTable() {
+                        var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet'));
+                        if (!table) return false;
+                        var rows = table.rows; if (!rows || rows.length < 3) return false;
+                        var headers = [];
+                        for (var i = 1; i < rows[0].cells.length; i++) {
+                            var cellTxt = rows[0].cells[i].innerText.trim();
+                            var minAmt = 0, maxAmt = 999999999;
+                            if (cellTxt.indexOf('-') > -1) { var p = cellTxt.split('-'); minAmt = smartParseNumber(p[0]); maxAmt = smartParseNumber(p[1]); }
+                            else if (cellTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(cellTxt); }
+                            headers.push({ label: cellTxt, minAmount: minAmt, maxAmount: maxAmt });
+                        }
+                        var tableRows = [];
+                        for (var r = 1; r < rows.length; r++) {
+                            var cells = rows[r].cells; if (cells.length < 2) continue;
+                            var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                            var rowRates = [];
+                            for (var c = 1; c < cells.length; c++) {
+                                var rate = smartParseNumber(cells[c].innerText);
+                                rowRates.push(isNaN(rate) ? null : rate);
+                            }
+                            tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                        }
+                        Android.sendRateWithTable(tableRows[0].rates[0], 'Tanışma Faizi', 'Akbank', JSON.stringify({headers: headers, rows: tableRows}));
+                        return true;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractAkbankTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Akbank - Standart",
+            url: "https://www.akbank.com/mevduat-yatirim/mevduat/vadeli-mevduat-hesaplari/vadeli-mevduat-hesabi",
+            desc: "Standart Vadeli",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractAkbankTable() {
+                        var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet'));
+                        if (!table) return false;
+                        var rows = table.rows; if (!rows || rows.length < 3) return false;
+                        var headers = [];
+                        for (var i = 1; i < rows[0].cells.length; i++) {
+                            var cellTxt = rows[0].cells[i].innerText.trim();
+                            var minAmt = 0, maxAmt = 999999999;
+                            if (cellTxt.indexOf('-') > -1) { var p = cellTxt.split('-'); minAmt = smartParseNumber(p[0]); maxAmt = smartParseNumber(p[1]); }
+                            else if (cellTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(cellTxt); }
+                            headers.push({ label: cellTxt, minAmount: minAmt, maxAmount: maxAmt });
+                        }
+                        var tableRows = [];
+                        for (var r = 1; r < rows.length; r++) {
+                            var cells = rows[r].cells; if (cells.length < 2) continue;
+                            var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                            var rowRates = [];
+                            for (var c = 1; c < cells.length; c++) {
+                                var rate = smartParseNumber(cells[c].innerText);
+                                rowRates.push(isNaN(rate) ? null : rate);
+                            }
+                            tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                        }
+                        Android.sendRateWithTable(tableRows[0].rates[0], 'Standart Vadeli', 'Akbank', JSON.stringify({headers: headers, rows: tableRows}));
+                        return true;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractAkbankTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Yapı Kredi",
+            url: "https://www.yapikredi.com.tr/bireysel-bankacilik/hesaplama-araclari/e-mevduat-faizi-hesaplama",
+            desc: "e-Mevduat / Yeni Param",
+            script: `(function() {
+                try {
+                    var amt = 100000; var dur = 32; var step = 0; var attempts = 0;
+                    \${commonJs}
+                    function runApi(isStandard, desc) {
+                        if (typeof $ === 'undefined' || typeof $.Page === 'undefined' || typeof $.Page.GetCalculationTool === 'undefined') return false;
+                        $.Page.GetCalculationTool(isStandard, "YTL").done(function(response) {
+                            try {
+                                if (!response || !response.Data || !response.Data.RateList) return;
+                                var rateData = response.Data.RateList[0];
+                                var headers = rateData.RateLevelList.map(v => ({ label: v.Description, minAmount: v.MinAmount, maxAmount: v.MaxAmount }));
+                                var tableRows = rateData.GroupedRateList.map(g => ({ label: g.StartTenor + "-" + g.EndTenor + " Gün", minDays: g.StartTenor, maxDays: g.EndTenor, rates: g.Rates }));
+                                Android.sendRateWithTable(tableRows[0].rates[0], desc, 'Yapı Kredi', JSON.stringify({headers: headers, rows: tableRows}));
+                            } catch(e) { Android.sendError('PARSING_ERROR'); }
+                        });
+                        return true;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (runApi(true, 'e-Mevduat')) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
         },
         {
             name: "İş Bankası",
             url: "https://www.isbank.com.tr/vadeli-tl",
             desc: "İşCep Vadeli TL",
-            script: `
-                var attempts = 0;
-                var interval = setInterval(function() {
-                    if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                    var tables = document.querySelectorAll('table');
-                     for (var t=0; t<tables.length; t++) {
-                         var rows = tables[t].querySelectorAll('tr');
-                         for(var r=0; r<rows.length; r++) {
-                            // IsBank uses specific spans
-                            var txt = rows[r].innerText;
-                             if(txt.indexOf('32') > -1) {
-                                  var best = 0;
-                                  var cells = rows[r].querySelectorAll('td');
-                                  for(var c=1; c<cells.length; c++) {
-                                      var val = smartParseNumber(cells[c].innerText);
-                                      if(!isNaN(val) && val > best && val < 100) best = val;
-                                  }
-                                  if(best > 0) {
-                                      Android.sendRateWithTable(best, 'İşCep Vadeli TL', 'İş Bankası', '{}');
-                                      clearInterval(interval);
-                                      return;
-                                  }
-                             }
-                         }
-                     }
-                    if(++attempts > 20) { clearInterval(interval); Android.sendError('NO_MATCH'); }
-                }, 500);
-            `
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function getCellValue(cell) {
+                        var contentSpan = cell.querySelector('span.content');
+                        if (contentSpan) return contentSpan.innerText.trim();
+                        var headerSpan = cell.querySelector('span.headres');
+                        if (headerSpan) return cell.innerText.replace(headerSpan.innerText, '').trim();
+                        return cell.innerText.trim();
+                    }
+                    function findIsBankasiRate() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t];
+                            var headerRow = table.querySelector('thead tr') || table.rows[0];
+                            if (!headerRow || !headerRow.innerText.toLowerCase().includes('vade')) continue;
+                            var headerCells = headerRow.querySelectorAll('th, td');
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                var min = smartParseNumber(txt);
+                                headers.push({ label: txt, minAmount: min, maxAmount: 999999999 });
+                            }
+                            var dataRows = table.querySelectorAll('tbody tr'); if (dataRows.length === 0) dataRows = Array.from(table.rows).slice(1);
+                            var tableRows = [];
+                            for (var r = 0; r < dataRows.length; r++) {
+                                var cells = dataRows[r].querySelectorAll('td'); if (cells.length < 2) continue;
+                                var durTxt = getCellValue(cells[0]); var durParsed = parseDuration(durTxt);
+                                var rowRates = [];
+                                for (var c = 1; c < cells.length; c++) {
+                                    var rate = smartParseNumber(getCellValue(cells[c]));
+                                    rowRates.push(isNaN(rate) ? null : rate);
+                                }
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            if (tableRows.length > 0) {
+                                Android.sendRateWithTable(tableRows[0].rates[0], 'İşCep Vadeli TL', 'İş Bankası', JSON.stringify({headers: headers, rows: tableRows}));
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (findIsBankasiRate()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Halkbank",
+            url: "https://www.halkbank.com.tr/tr/bireysel/mevduat/mevduat-faiz-oranlari/vadeli-tl-mevduat-faiz-oranlari",
+            desc: "İnternet Vadeli TL",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+                    \${commonJs}
+                    function extractHalkbankTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t]; var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
+                            var headerCells = rows[0].querySelectorAll('td, th'); if (headerCells.length < 4 || !rows[0].innerText.toLowerCase().includes('vade')) continue;
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                var min = smartParseNumber(txt);
+                                headers.push({ label: txt, minAmount: min, maxAmount: 999999999 });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
+                                var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                                var rowRates = [];
+                                for (var c = 1; c < cells.length; c++) {
+                                    var rate = smartParseNumber(cells[c].innerText);
+                                    rowRates.push(isNaN(rate) ? null : rate);
+                                }
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            Android.sendRateWithTable(tableRows[0].rates[0], 'İnternet Vadeli TL', 'Halkbank', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (step === 0) {
+                            if (typeof $ !== 'undefined' && $('#type').length) { $('#type').val('1').trigger('change'); }
+                            else { var b = document.querySelector('#type'); if(b) { b.value='1'; b.dispatchEvent(new Event('change',{bubbles:true})); } }
+                            step = 1;
+                        } else {
+                            if (extractHalkbankTable()) clearInterval(interval);
+                        }
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "VakıfBank - Tanışma",
+            url: "https://www.vakifbank.com.tr/tr/hesaplama-araclari/mevduat-faiz-oranlari",
+            desc: "Tanışma Kampanyası",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+                    \${commonJs}
+                    function extractVakifbankTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t]; var rows = table.querySelectorAll('tr');
+                            if (rows.length < 3 || !rows[0].innerText.toLowerCase().includes('tutar')) continue;
+                            var headerCells = rows[0].querySelectorAll('td, th');
+                            var durationHeaders = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var durParsed = parseDuration(headerCells[i].innerText);
+                                durationHeaders.push({ label: headerCells[i].innerText.trim(), minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
+                                var amt = smartParseNumber(cells[0].innerText);
+                                var rates = []; for (var c = 1; c < cells.length; c++) rates.push(smartParseNumber(cells[c].innerText));
+                                tableRows.push({ label: cells[0].innerText.trim(), minAmount: amt, maxAmount: 999999999, rates: rates });
+                            }
+                            var tableJson = JSON.stringify({
+                                headers: tableRows.map(r => ({ label: r.label, minAmount: r.minAmount, maxAmount: r.maxAmount })),
+                                rows: durationHeaders.map((h, idx) => ({ label: h.label, minDays: h.minDays, maxDays: h.maxDays, rates: tableRows.map(r => r.rates[idx]) }))
+                            });
+                            Android.sendRateWithTable(0, 'Tanışma Kampanyası', 'VakıfBank', tableJson);
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (step === 0) {
+                            var btn = Array.from(document.querySelectorAll('a.btn')).find(b => b.innerText.includes('Tanışma'));
+                            if (btn) btn.click();
+                            step = 1;
+                        } else {
+                            if (extractVakifbankTable()) clearInterval(interval);
+                        }
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "VakıfBank - Standart",
+            url: "https://www.vakifbank.com.tr/tr/hesaplama-araclari/mevduat-faiz-oranlari",
+            desc: "E-Vadeli Hesabı",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+                    \${commonJs}
+                    function extractVakifbankTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t]; var rows = table.querySelectorAll('tr');
+                            if (rows.length < 3 || !rows[0].innerText.toLowerCase().includes('tutar')) continue;
+                            var headerCells = rows[0].querySelectorAll('td, th');
+                            var durationHeaders = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var durParsed = parseDuration(headerCells[i].innerText);
+                                durationHeaders.push({ label: headerCells[i].innerText.trim(), minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
+                                var amt = smartParseNumber(cells[0].innerText);
+                                var rates = []; for (var c = 1; c < cells.length; c++) rates.push(smartParseNumber(cells[c].innerText));
+                                tableRows.push({ label: cells[0].innerText.trim(), minAmount: amt, maxAmount: 999999999, rates: rates });
+                            }
+                            var tableJson = JSON.stringify({
+                                headers: tableRows.map(r => ({ label: r.label, minAmount: r.minAmount, maxAmount: r.maxAmount })),
+                                rows: durationHeaders.map((h, idx) => ({ label: h.label, minDays: h.minDays, maxDays: h.maxDays, rates: tableRows.map(r => r.rates[idx]) }))
+                            });
+                            Android.sendRateWithTable(0, 'E-Vadeli Hesabı', 'VakıfBank', tableJson);
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (step === 0) {
+                            var btn = Array.from(document.querySelectorAll('a.btn')).find(b => b.innerText.includes('E-Vadeli'));
+                            if (btn) btn.click();
+                            step = 1;
+                        } else {
+                            if (extractVakifbankTable()) clearInterval(interval);
+                        }
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Alternatif Bank",
+            url: "https://www.alternatifbank.com.tr/bilgi-merkezi/faiz-oranlari#mevduat",
+            desc: "E-Mevduat TRY",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractAlternatifTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t]; var rect = table.getBoundingClientRect(); if (rect.width === 0 || rect.height === 0) continue;
+                            var rows = table.querySelectorAll('tr'); if (rows.length < 3 || !rows[0].innerText.toUpperCase().includes('VADE')) continue;
+                            var headerCells = rows[0].querySelectorAll('td, th');
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                headers.push({ label: txt, minAmount: smartParseNumber(txt), maxAmount: 999999999 });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
+                                var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                                var rowRates = []; for (var c = 1; c < cells.length; c++) rowRates.push(smartParseNumber(cells[c].innerText));
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            Android.sendRateWithTable(0, 'E-Mevduat TRY', 'Alternatif Bank', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractAlternatifTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "Odeabank",
+            url: "https://www.odeabank.com.tr/bireysel/mevduat/vadeli-mevduat",
+            desc: "İnternet/Mobil Vadeli",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+                    \${commonJs}
+                    function extractOdeabankTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t]; if (table.getBoundingClientRect().height < 10) continue;
+                            var rows = table.querySelectorAll('tr'); if (rows.length < 3 || !rows[0].innerText.toUpperCase().includes('VADE')) continue;
+                            var headerCells = rows[0].querySelectorAll('td, th');
+                            var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                headers.push({ label: txt, minAmount: smartParseNumber(txt), maxAmount: 999999999 });
+                            }
+                            var tableRows = [];
+                            for (var r = 1; r < rows.length; r++) {
+                                var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
+                                var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                                var rowRates = []; for (var c = 1; c < cells.length; c++) rowRates.push(smartParseNumber(cells[c].innerText));
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            Android.sendRateWithTable(0, 'İnternet/Mobil Vadeli', 'Odeabank', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (step === 0) {
+                            var btn = document.getElementById('accordion-2') || Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('İnternet/Mobil'));
+                            if (btn) btn.click();
+                            step = 1;
+                        } else {
+                            if (extractOdeabankTable()) clearInterval(interval);
+                        }
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
+        },
+        {
+            name: "DenizBank",
+            url: "https://www.denizbank.com/hesap/e-mevduat",
+            desc: "E-Mevduat",
+            script: `(function() {
+                try {
+                    var amount = 100000; var duration = 32; var attempts = 0;
+                    \${commonJs}
+                    function extractDenizbankTable() {
+                        var tables = document.querySelectorAll('table');
+                        for (var t = 0; t < tables.length; t++) {
+                            var table = tables[t]; var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
+                            var headerRow = Array.from(rows).find(r => r.innerText.includes('-') && r.innerText.match(/\\d/));
+                            if (!headerRow || !headerRow.cells[0].innerText.toUpperCase().includes('GÜN')) continue;
+                            var headerCells = headerRow.cells; var headers = [];
+                            for (var i = 1; i < headerCells.length; i++) {
+                                var txt = headerCells[i].innerText.trim();
+                                headers.push({ label: txt, minAmount: smartParseNumber(txt), maxAmount: 999999999 });
+                            }
+                            var tableRows = []; var startIdx = Array.from(rows).indexOf(headerRow) + 1;
+                            for (var r = startIdx; r < rows.length; r++) {
+                                var cells = rows[r].cells; if (cells.length < 2) continue;
+                                var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                                var rowRates = []; for (var c = 1; c < cells.length; c++) rowRates.push(smartParseNumber(cells[c].innerText));
+                                tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                            }
+                            Android.sendRateWithTable(0, 'E-Mevduat', 'DenizBank', JSON.stringify({headers: headers, rows: tableRows}));
+                            return true;
+                        }
+                        return false;
+                    }
+                    var interval = setInterval(function() {
+                        if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                        if (extractDenizbankTable()) clearInterval(interval);
+                        if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                    }, 800);
+                } catch(e) { Android.sendError('PARSING_ERROR'); }
+            })()`
         }
     ];
 
-    const results = [];
+    const allFlattenedRows = [];
+    const executionDate = new Date().toISOString();
 
-    // --- Execution Loop ---
     for (const bank of banks) {
-        console.log(`--- Processing ${bank.name} ---`);
+        console.log(`--- Scoping \${bank.name} ---`);
         try {
             await page.goto(bank.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
             const result = await page.evaluate((commonJs, bankScript, bankDesc, bankName) => {
                 return new Promise((resolve) => {
-                    // Set up Mock Android Interface to capture the call from the script
                     window.Android = {
                         sendRateWithTable: (rate, desc, name, json) => {
                             resolve({ status: 'SUCCESS', rate, desc, bank: name, json });
@@ -344,62 +796,67 @@ async function main() {
                         sendError: (err) => {
                             resolve({ status: 'ERROR', error: err, bank: bankName });
                         },
-                        log: (msg) => { }
+                        log: (msg) => { console.log('INTERN:', msg); }
                     };
 
-                    // Inject Utils
                     var s = document.createElement('script');
                     s.innerHTML = commonJs;
                     document.head.appendChild(s);
 
-                    // Run Bank Script
                     try {
-                        // eslint-disable-next-line no-eval
                         eval(bankScript);
                     } catch (e) {
                         resolve({ status: 'ERROR', error: e.toString() });
                     }
-
-                    // Timeout
-                    setTimeout(() => resolve({ status: 'TIMEOUT' }), 20000);
+                    setTimeout(() => resolve({ status: 'TIMEOUT' }), 35000);
                 });
             }, commonJs, bank.script, bank.desc, bank.name);
 
-            console.log(`Result: ${result.status} ${result.rate || ''} ${result.error || ''}`);
+            console.log(`Result: \${result.status} \${result.error || ''}`);
 
-            if (result.status === 'SUCCESS') {
-                results.push({
-                    date: new Date().toISOString(),
-                    bank: result.bank,
-                    desc: result.desc,
-                    rate: result.rate,
-                    min: 0, max: 0, duration: 32,
-                    url: bank.url
+            if (result.status === 'SUCCESS' && result.json) {
+                const table = JSON.parse(result.json);
+                table.rows.forEach(row => {
+                    row.rates.forEach((rate, colIdx) => {
+                        if (rate !== null && rate > 0) {
+                            const header = table.headers[colIdx];
+                            allFlattenedRows.push([
+                                executionDate,
+                                result.bank,
+                                result.desc,
+                                rate,
+                                header.minAmount || 0,
+                                header.maxAmount || 999999999,
+                                row.minDays || 0,
+                                row.maxDays || 99999,
+                                bank.url
+                            ]);
+                        }
+                    });
                 });
             }
-
         } catch (e) {
-            console.error(`Error processing ${bank.name}:`, e.message);
+            console.error(`Error for \${bank.name}:`, e.message);
         }
     }
 
-    console.log(`\nCollected ${results.length} rates.`);
+    console.log(`\nExtracted \${allFlattenedRows.length} total rate entries.`);
 
-    // --- Write to Sheet ---
-    if (results.length > 0) {
-        console.log('Writing to sheet...');
+    if (allFlattenedRows.length > 0) {
+        console.log('Updating Google Sheet...');
         const sheet = doc.sheetsByIndex[0];
-        const rowsToAdd = results.map(r => [
-            r.date, r.bank, r.desc, r.rate, r.min, r.max, r.duration, r.url
-        ]);
-        await sheet.addRows(rowsToAdd);
-        console.log('Success!');
+
+        // Clear existing data (optional, but good for fresh full table)
+        // sheet.clear(); await sheet.setHeaderRow(['Date', 'Bank', 'Description', 'Rate', 'MinAmount', 'MaxAmount', 'MinDays', 'MaxDays', 'URL']);
+
+        await sheet.addRows(allFlattenedRows);
+        console.log('Successfully updated Google Sheet!');
     }
 
     await browser.close();
 }
 
 main().catch(err => {
-    console.error(err);
+    console.error('Fatal Scraper Error:', err);
     process.exit(1);
 });
