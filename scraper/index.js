@@ -874,20 +874,25 @@ async function main() {
                         var rows = Array.from(table.querySelectorAll('tr'));
                         if (rows.length < 2) return false;
                         var headerCells = Array.from(rows[0].querySelectorAll('th, td'));
-                        var headers = [];
+                        var headers = []; 
+                        var hasValidHeader = false;
                         for (var i = 1; i < headerCells.length; i++) {
                             var txt = headerCells[i].innerText.trim();
                             var parts = txt.replace(/TL/gi, '').split('-');
                             var min = smartParseNumber(parts[0]);
                             var max = parts.length > 1 ? smartParseNumber(parts[1]) : 999999999;
+                            if (min > 0) hasValidHeader = true;
                             headers.push({ label: txt, minAmount: min, maxAmount: max });
                         }
+                        if (!hasValidHeader) return false;
+
                         var tableRows = [];
                         for (var r = 1; r < rows.length; r++) {
                             var cells = Array.from(rows[r].querySelectorAll('td, th'));
                             if (cells.length < 2) continue;
                             var durTxt = cells[0].innerText.trim();
                             var durParsed = parseDuration(durTxt);
+                            if (!durParsed) continue;
                             var rowRates = [];
                             for (var c = 1; c < cells.length; c++) {
                                 var rate = smartParseNumber(cells[c].innerText);
