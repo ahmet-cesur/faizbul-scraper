@@ -14,19 +14,25 @@ module.exports = {
                 for (var t = 0; t < tables.length; t++) {
                     var table = tables[t]; 
                     var rect = table.getBoundingClientRect(); 
-                    if (rect.width === 0 || rect.height === 0) continue; // Skip hidden tables clearly
+                    if (rect.width === 0 || rect.height === 0) continue; // Skip hidden tables
 
                     var rows = table.querySelectorAll('tr'); 
                     if (rows.length < 3) continue;
                     
                     var headerRow = rows[0];
                     var headerText = headerRow.innerText.toUpperCase();
-                    if (!headerText.includes('VADE')) continue; // Strict VADE Keyword
                     
-                    // Check previous header or container for "MEVDUAT" or similar to avoid Credits
+                    // Strict keywords: must have VADE and not be a loan table
+                    if (!headerText.includes('VADE')) continue;
+                    
+                    // Must be E-MEVDUAT or MEVDUAT table, not KREDİ
+                    var tableText = table.innerText.toUpperCase();
+                    if (tableText.includes('KREDİ') && !tableText.includes('E-MEVDUAT')) continue;
+                    
+                    // Check container for E-MEVDUAT keyword
                     var containerText = table.parentElement ? table.parentElement.innerText.toUpperCase() : '';
-                    if (!table.innerText.toUpperCase().includes('MEVDUAT') && !containerText.includes('MEVDUAT')) {
-                        // Strict MEVDUAT Keyword check
+                    if (!tableText.includes('E-MEVDUAT') && !containerText.includes('E-MEVDUAT') && 
+                        !tableText.includes('MEVDUAT') && !containerText.includes('MEVDUAT')) {
                         continue;
                     }
 
@@ -47,7 +53,22 @@ module.exports = {
                     var tableRows = [];
                     for (var r = 1; r < rows.length; r++) {
                         var cells = rows[r].querySelectorAll('td, th'); if (cells.length < 2) continue;
-                        var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
+                        var durTxt = cells[0].innerText.trim();
+                        
+                        // Inline duration parsing for patterns like "32-45 GÜN"
+                        var durParsed = null;
+                        var durMatch = durTxt.match(/(\\d+)\\s*[-–]\\s*(\\d+)/);
+                        if (durMatch) {
+                            durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
+                        } else {
+                            var singleMatch = durTxt.match(/(\\d+)/);
+                            if (singleMatch && durTxt.toUpperCase().includes('GÜN')) {
+                                durParsed = { min: parseInt(singleMatch[1]), max: parseInt(singleMatch[1]) };
+                            } else {
+                                durParsed = parseDuration(durTxt);
+                            }
+                        }
+                        
                         if (!durParsed) continue;
                         var rowRates = []; for (var c = 1; c < cells.length; c++) rowRates.push(smartParseNumber(cells[c].innerText));
                         tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });

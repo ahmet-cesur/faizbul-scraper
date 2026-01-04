@@ -88,8 +88,9 @@ module.exports = {
                     
                     var rowRates = [];
                     for (var d = 0; d < durationHeaders.length; d++) {
-                        var colIdx = durationHeaders[d].colIndex;
-                        var cell = chunk[colIdx];
+                        // Use relative index in chunk: d+1 because index 0 is amount
+                        var cell = chunk[d + 1];
+                        if (!cell) continue;
                         var rateTxt = cell.innerText.trim();
                         
                         // Extract rate: "32 Gün\n%48,00" -> 48.00

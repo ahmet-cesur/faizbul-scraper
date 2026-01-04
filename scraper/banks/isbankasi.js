@@ -51,7 +51,20 @@ module.exports = {
                     for (var r = 0; r < dataRows.length; r++) {
                         var cells = dataRows[r].querySelectorAll('td'); if (cells.length < 2) continue;
                         var durTxt = getCellValue(cells[0]); 
-                        var durParsed = parseDuration(durTxt);
+                        
+                        // Inline duration parsing for İş Bankası formats like "1-7 gün", "32-45 gün"
+                        var durParsed = null;
+                        var durMatch = durTxt.match(/(\\d+)\\s*[-–]\\s*(\\d+)/);
+                        if (durMatch) {
+                            durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
+                        } else {
+                            var singleMatch = durTxt.match(/(\\d+)/);
+                            if (singleMatch && durTxt.toLowerCase().includes('gün')) {
+                                durParsed = { min: parseInt(singleMatch[1]), max: parseInt(singleMatch[1]) };
+                            } else {
+                                durParsed = parseDuration(durTxt); // Fallback to common
+                            }
+                        }
                         
                         if (!durParsed && r < 2) continue; // First few rows must be durations
                         if (!durParsed) continue;
