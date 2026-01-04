@@ -5,8 +5,12 @@ module.exports = {
     script: `(function() {
         try {
             var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+            \n            function logError(msg) { console.log('FIBA_ERROR: ' + msg); }
+
             function extractFibabankaTable() {
                 var tables = document.querySelectorAll('table');
+                if (tables.length === 0 && attempts > 10) logError('No tables found');
+
                 for (var t = 0; t < tables.length; t++) {
                     var table = tables[t];
                     // Skip invisible or tiny tables
@@ -29,7 +33,10 @@ module.exports = {
                         if (min > 0) hasValidHeader = true;
                         headers.push({ label: txt, minAmount: min, maxAmount: max });
                     }
-                    if (!hasValidHeader) continue;
+                    if (!hasValidHeader) {
+                         if (attempts > 30) logError('Table found but header parsing failed');
+                         continue;
+                    }
 
                     var tableRows = [];
                     var tableHasInvalidRates = false;
@@ -49,7 +56,10 @@ module.exports = {
                         tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                     }
 
-                    if (tableHasInvalidRates) continue; // Skip tables that look like they contain invalid data
+                    if (tableHasInvalidRates) {
+                        logError('Table contained invalid rates > 100, skipping');
+                        continue; 
+                    }
 
                     if (tableRows.length > 0) {
                         Android.sendRateWithTable(tableRows[0].rates[0], 'e-Mevduat', 'Fibabanka', JSON.stringify({headers: headers, rows: tableRows}));
@@ -67,13 +77,22 @@ module.exports = {
                         // Try native click just in case 
                         if (btn.onclick) btn.onclick();
                         step = 1; 
-                    }
-                    else { step = 1; } // Try extracting anyway if button not found (might be already open)
+                    } else { 
+                        if (attempts > 5 && attempts % 10 === 0) logError('Accordion with e-Mevduat not found');
+                        step = 1; 
+                    } // Try extracting anyway if button not found (might be already open)
                 } else {
                     if (extractFibabankaTable()) clearInterval(interval);
                 }
-                if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                if (++attempts > 40) { 
+                    clearInterval(interval); 
+                    logError('Timeout (40 attempts)');
+                    Android.sendError('NO_MATCH'); 
+                }
             }, 1000);
-        } catch(e) { Android.sendError('PARSING_ERROR'); }
+        } catch(e) { 
+            console.log('FIBA_FATAL: ' + e.message);
+            Android.sendError('PARSING_ERROR'); 
+        }
     })()`
 };

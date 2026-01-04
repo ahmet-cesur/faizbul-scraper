@@ -5,19 +5,30 @@ module.exports = {
     script: `(function() {
         try {
             var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-            \n            function extractAlternatifTable() {
+            \n            function logError(msg) { console.log('ALTERNATIF_ERROR: ' + msg); }
+
+            function extractAlternatifTable() {
                 var tables = document.querySelectorAll('table');
+                if (tables.length === 0 && attempts > 10) logError('No tables found in DOM');
+
                 for (var t = 0; t < tables.length; t++) {
-                    var table = tables[t]; var rect = table.getBoundingClientRect(); if (rect.width === 0 || rect.height === 0) continue;
-                    var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
+                    var table = tables[t]; 
+                    var rect = table.getBoundingClientRect(); 
+                    if (rect.width === 0 || rect.height === 0) continue; // Skip hidden tables clearly
+
+                    var rows = table.querySelectorAll('tr'); 
+                    if (rows.length < 3) continue;
                     
                     var headerRow = rows[0];
                     var headerText = headerRow.innerText.toUpperCase();
-                    if (!headerText.includes('VADE')) continue;
+                    if (!headerText.includes('VADE')) continue; // Strict VADE Keyword
                     
                     // Check previous header or container for "MEVDUAT" or similar to avoid Credits
                     var containerText = table.parentElement ? table.parentElement.innerText.toUpperCase() : '';
-                    if (!table.innerText.toUpperCase().includes('MEVDUAT') && !containerText.includes('MEVDUAT')) continue;
+                    if (!table.innerText.toUpperCase().includes('MEVDUAT') && !containerText.includes('MEVDUAT')) {
+                        // Strict MEVDUAT Keyword check
+                        continue;
+                    }
 
                     var headerCells = rows[0].querySelectorAll('td, th');
                     var headers = [];
@@ -28,7 +39,10 @@ module.exports = {
                         if (min > 0) hasValidHeader = true;
                         headers.push({ label: txt, minAmount: smartParseNumber(txt), maxAmount: 999999999 });
                     }
-                    if (!hasValidHeader) continue;
+                    if (!hasValidHeader) {
+                        if (attempts > 30) logError('Found VADE table but no valid amount headers');
+                        continue;
+                    }
 
                     var tableRows = [];
                     for (var r = 1; r < rows.length; r++) {
@@ -56,13 +70,22 @@ module.exports = {
                         acc.click(); 
                         if (acc.onclick) acc.onclick();
                         step = 1; 
+                    } else { 
+                        if (attempts > 5 && attempts % 10 === 0) logError('Accordion with MEVDUAT not found');
+                        step = 1; 
                     }
-                    else { step = 1; }
                 } else {
                     if (extractAlternatifTable()) clearInterval(interval);
                 }
-                if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
+                if (++attempts > 40) { 
+                    clearInterval(interval); 
+                    logError('Timeout (40 attempts)');
+                    Android.sendError('NO_MATCH'); 
+                }
             }, 800);
-        } catch(e) { Android.sendError('PARSING_ERROR'); }
+        } catch(e) { 
+            console.log('ALTERNATIF_FATAL: ' + e.message);
+            Android.sendError('PARSING_ERROR'); 
+        }
     })()`
 };
