@@ -281,6 +281,19 @@ async function main() {
         }
     } catch (e) {
         console.error('Scraper Error:', e.message);
+
+        // If we are in GitHub Actions and it's a "failed for some banks" error,
+        // formatted as a workflow error annotation to be more visible
+        if (process.env.GITHUB_ACTIONS && e.message.includes('Scraper failed for some banks')) {
+            console.log(`::error::${e.message}`);
+
+            // Also write to summary
+            const fs = require('fs');
+            if (process.env.GITHUB_STEP_SUMMARY) {
+                fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ❌ Scraper Failure\n\n${e.message}\n`);
+            }
+        }
+
         throw e; // Re-throw to ensure the process exits with code 1
     }
 
