@@ -250,7 +250,7 @@ fun SettingsPage(navController: NavController) {
                         }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    var devTaps by remember { mutableStateOf(0) }
+                    var devTaps by remember { mutableIntStateOf(0) }
                     Column(
                         modifier = Modifier.clickable {
                             // Secret Developer Trigger: 10 taps on version name

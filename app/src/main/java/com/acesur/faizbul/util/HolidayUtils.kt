@@ -56,7 +56,7 @@ object HolidayUtils {
         val year = calendar.get(Calendar.YEAR)
 
         val yearHolidays = holidays[year] ?: return false
-        val key = String.format("%02d-%02d", day, month)
+        val key = String.format(java.util.Locale.US, "%02d-%02d", day, month)
         return yearHolidays.contains(key)
     }
     
@@ -65,7 +65,7 @@ object HolidayUtils {
         val month = calendar.get(Calendar.MONTH)
         val year = calendar.get(Calendar.YEAR)
         
-        val key = String.format("%02d-%02d", day, month)
+        val key = String.format(java.util.Locale.US, "%02d-%02d", day, month)
         
         return when (year) {
             2025 -> when (key) {

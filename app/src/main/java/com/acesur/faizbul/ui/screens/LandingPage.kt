@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -90,7 +91,13 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
             weekendDayName = holidayName ?: (if (dayOfWeek == Calendar.SATURDAY) "Cumartesi" else "Pazar")
             showWeekendWarning = true
         } else {
-            navController.navigate("result/$amount/$duration")
+            if (adManager != null && activity != null) {
+                adManager.showInterstitial(activity) {
+                    navController.navigate("result/$amount/$duration")
+                }
+            } else {
+                navController.navigate("result/$amount/$duration")
+            }
         }
     }
 
@@ -183,10 +190,10 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(40.dp))
             
             // Top Row for Settings and Bank Selection
             Row(
@@ -299,7 +306,58 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+    // Pre-fetch data when screen opens
+    LaunchedEffect(Unit) {
+        // Use the Repository directly to warm up the cache
+        com.acesur.faizbul.data.GoogleSheetRepository.prefetch()
+    }
+
+    // ... (rest of code)
+    
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // "Hızlı Getir" Auto-fill & Search Button with Premium Style
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(16.dp),
+                        ambientColor = Emerald500.copy(alpha = 0.3f),
+                        spotColor = Emerald500.copy(alpha = 0.3f)
+                    )
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Emerald600, Emerald500)
+                        )
+                    )
+                    .clickable {
+                        navController.navigate("quick_results")
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "HIZLI GETİR (EN YÜKSEK ORANLAR)",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        ),
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Amount Input Field with premium styling
             PremiumTextField(

@@ -10,7 +10,15 @@ object GoogleSheetRepository {
     private const val SHEET_ID = "1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY"
     private const val CSV_URL = "https://docs.google.com/spreadsheets/d/$SHEET_ID/export?format=csv"
 
-    suspend fun fetchRates(): List<InterestRate> = withContext(Dispatchers.IO) {
+    private var cachedRates: List<InterestRate>? = null
+    private var lastFetchTime: Long = 0
+    private const val CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
+
+    suspend fun fetchRates(forceRefresh: Boolean = false): List<InterestRate> = withContext(Dispatchers.IO) {
+        if (!forceRefresh && cachedRates != null && (System.currentTimeMillis() - lastFetchTime) < CACHE_DURATION_MS) {
+            return@withContext cachedRates!!
+        }
+
         val rates = mutableListOf<InterestRate>()
         try {
             val url = URL(CSV_URL)
@@ -64,10 +72,17 @@ object GoogleSheetRepository {
                 }
             }
             reader.close()
+            
+            cachedRates = rates
+            lastFetchTime = System.currentTimeMillis()
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        rates
+        cachedRates ?: emptyList()
+    }
+    
+    suspend fun prefetch() {
+        fetchRates(forceRefresh = false)
     }
 
     /**
@@ -103,6 +118,36 @@ object GoogleSheetRepository {
         }
     }
     
+    suspend fun getBestOffers(): List<BestOffer> = withContext(Dispatchers.IO) {
+        val allRates = fetchRates(forceRefresh = false)
+        if (allRates.isEmpty()) return@withContext emptyList()
+        
+        // 1. Find the highest rate
+        val maxRate = allRates.maxOfOrNull { it.rate } ?: return@withContext emptyList()
+        
+        // 2. Filter rates matching the highest rate
+        val topRates = allRates.filter { it.rate == maxRate }
+        
+        // 3. Group by bank and consolidate
+        topRates.groupBy { it.bankName }.map { (bankName, rates) ->
+            val minAmount = rates.minOf { it.minAmount }
+            val dayRanges = rates.map { it.minDays to it.maxDays }.distinct().sortedBy { it.first }
+            val latestTimestamp = rates.maxOf { it.timestamp }
+            val firstUrl = rates.firstOrNull { it.url.isNotEmpty() }?.url ?: ""
+            val firstTable = rates.firstOrNull { it.tableJson != null }?.tableJson
+            
+            BestOffer(
+                bankName = bankName,
+                rate = maxRate,
+                minAmount = minAmount,
+                dayRanges = dayRanges,
+                timestamp = latestTimestamp,
+                url = firstUrl,
+                tableJson = firstTable
+            )
+        }.sortedBy { it.bankName }
+    }
+
     private fun parseCsvLine(line: String): List<String> {
         val tokens = mutableListOf<String>()
         var inQuotes = false

@@ -67,7 +67,7 @@ class ResultViewModel : ViewModel() {
 
         // Try fetching from Google Sheet first
         val sheetRates = try {
-            GoogleSheetRepository.fetchRates()
+            GoogleSheetRepository.fetchRates(forceRefresh = isRefreshing.value)
         } catch (e: Exception) {
             emptyList<InterestRate>()
         }
@@ -83,26 +83,38 @@ class ResultViewModel : ViewModel() {
                 days >= it.minDays && days <= it.maxDays
             }
             
-            if (sheetRate != null && sheetRate.rate > 0) {
-                 val calc = calculateDetailedEarnings(amount, sheetRate.rate, days)
-                 val finalRate = sheetRate.copy(
-                    earnings = calc.net,
-                    grossEarnings = calc.gross,
-                    taxRate = calc.taxRate,
-                    url = if (sheetRate.url.isNotEmpty()) sheetRate.url else spec.url
-                 )
-                 
-                 val isSheetRateStale = sheetRate.timestamp < todayStart
-                 
-                 resultsMap[spec.name] = ScraperResultState(
-                    spec = spec,
-                    status = ScraperStatus.SUCCESS,
-                    rate = finalRate,
-                    isUsingCachedRate = isSheetRateStale,
-                    tableTimestamp = sheetRate.timestamp,
-                    cachedTableJson = sheetRate.tableJson
-                )
-                return@forEach
+            if (sheetRate != null) {
+                 // Prioritize extracting the precise rate from the table if available
+                 var finalRateValue = sheetRate.rate
+                 if (sheetRate.tableJson != null) {
+                     val extracted = extractRateFromTable(sheetRate.tableJson, amount, days)
+                     if (extracted != null && extracted > 0) {
+                         finalRateValue = extracted
+                     }
+                 }
+
+                 if (finalRateValue > 0) {
+                     val calc = calculateDetailedEarnings(amount, finalRateValue, days)
+                     val finalRate = sheetRate.copy(
+                        rate = finalRateValue,
+                        earnings = calc.net,
+                        grossEarnings = calc.gross,
+                        taxRate = calc.taxRate,
+                        url = if (sheetRate.url.isNotEmpty()) sheetRate.url else spec.url
+                     )
+                     
+                     val isSheetRateStale = sheetRate.timestamp < todayStart
+                     
+                     resultsMap[spec.name] = ScraperResultState(
+                        spec = spec,
+                        status = ScraperStatus.SUCCESS,
+                        rate = finalRate,
+                        isUsingCachedRate = isSheetRateStale,
+                        tableTimestamp = sheetRate.timestamp,
+                        cachedTableJson = sheetRate.tableJson
+                    )
+                    return@forEach
+                 }
             }
 
             // 2. Fallback to Local Cache
