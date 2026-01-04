@@ -106,19 +106,29 @@ object GoogleSheetRepository {
     private fun parseCsvLine(line: String): List<String> {
         val tokens = mutableListOf<String>()
         var inQuotes = false
-        var currentToken = StringBuilder()
+        val currentToken = StringBuilder()
         
-        for (char in line) {
-            if (char == '"') {
-                inQuotes = !inQuotes
-            } else if (char == ',' && !inQuotes) {
-                tokens.add(currentToken.toString().trim())
-                currentToken = StringBuilder()
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+                    // Double quote inside quotes -> Literal quote
+                    currentToken.append('"')
+                    i++ // Skip the second quote
+                } else {
+                    // Start or end of quoted field
+                    inQuotes = !inQuotes
+                }
+            } else if (c == ',' && !inQuotes) {
+                tokens.add(currentToken.toString()) // Don't trim, preserve exact content
+                currentToken.clear()
             } else {
-                currentToken.append(char)
+                currentToken.append(c)
             }
+            i++
         }
-        tokens.add(currentToken.toString().trim())
+        tokens.add(currentToken.toString())
         return tokens
     }
 }

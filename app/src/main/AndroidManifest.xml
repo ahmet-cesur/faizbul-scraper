@@ -35,11 +35,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Background Update Service -->
-        <service
-            android:name=".background.BackgroundUpdateService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+
     </application>
 
 </manifest>

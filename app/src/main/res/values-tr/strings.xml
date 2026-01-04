@@ -40,5 +40,8 @@
     <string name="notification_content">%1$s bankası %%%2$.2f faiz oranı sunuyor.</string>
     <string name="notification_channel_name">Arama Sonuçları</string>
     <string name="notification_channel_desc">Faiz arama sonuçları tamamlandığında bildirim gönderir.</string>
+    <string name="label_session_best">BU OTURUMDAKİ EN YÜKSEK ORAN</string>
+    <string name="label_amount_bracket">Tutar Aralığı:</string>
+    <string name="label_duration_bracket">Vade Aralığı:</string>
     <string name="bank_data_warning">Bu uygulama, kullanıcı kolaylığı sağlamak amacıyla bankaların internet sitelerindeki halka açık verileri derlemektedir. Banka web sitelerindeki yoğunluk veya yapısal değişiklikler nedeniyle bazı veriler anlık olarak görüntülenemeyebilir. Faiz oranlarını her zaman bankanın resmi sitesinden kontrol etmeniz önerilir.</string>
 </resources>
