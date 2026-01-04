@@ -168,21 +168,26 @@ async function main() {
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
-                let hasInvalidRate = false;
-                for (const row of table.rows) {
-                    for (const rate of row.rates) {
-                        if (rate !== null && rate > 100) {
-                            hasInvalidRate = true;
-                            break;
+                let hasInvalidRate = (result.rate > 100);
+                let invalidRateValue = result.rate > 100 ? result.rate : null;
+
+                if (!hasInvalidRate) {
+                    for (const row of table.rows) {
+                        for (const rate of row.rates) {
+                            if (rate !== null && rate > 100) {
+                                hasInvalidRate = true;
+                                invalidRateValue = rate;
+                                break;
+                            }
                         }
+                        if (hasInvalidRate) break;
                     }
-                    if (hasInvalidRate) break;
                 }
 
                 if (hasInvalidRate) {
                     bankStatus = 'ERROR';
-                    errorMessage = 'Back-end validation failed: Found rate > 100';
-                    console.warn(`Validation Error for ${bank.name}: Found rate > 100. Discarding all results.`);
+                    errorMessage = `Back-end validation failed: Found abnormal rate (${invalidRateValue})`;
+                    console.warn(`Validation Error for ${bank.name}: Found rate ${invalidRateValue} > 100. Discarding all results.`);
                 } else {
                     table.rows.forEach(row => {
                         row.rates.forEach((rate, colIdx) => {
@@ -206,8 +211,13 @@ async function main() {
                     rowCount = allFlattenedRows.length - bankRowsBefore;
                     console.log(`Extracted table for ${result.bank}: ${rowCount} entries found.`);
                 }
-            } else if (result.status === 'ERROR' || result.status === 'TIMEOUT') {
-                console.warn(`No data extracted for ${bank.name}. Status: ${result.status} ${errorMessage}`);
+            } else {
+                // If status is not SUCCESS, or if SUCCESS but no JSON data was provided
+                if (result.status === 'SUCCESS' && !result.json) {
+                    bankStatus = 'ERROR';
+                    errorMessage = 'Scraper reported SUCCESS but returned no table data';
+                }
+                console.warn(`No data extracted for ${bank.name}. Status: ${bankStatus} ${errorMessage}`);
             }
         } catch (e) {
             bankStatus = 'FATAL';
@@ -234,8 +244,14 @@ async function main() {
         if (allFlattenedRows.length > 0) {
             console.log('Updating Data Sheet (Sheet 1)...');
             const dataSheet = doc.sheetsByIndex[0];
+
+            // Clear existing rows to keep only 1 line per amount-days combo (latest results).
+            // If some banks fail this run, they will be removed from Sheet 1 until they succeed again.
+            // This ensures the app always shows fresh data and prevents duplicates.
+            await dataSheet.clearRows();
+
             await dataSheet.addRows(allFlattenedRows);
-            console.log('Successfully updated Sheet 1!');
+            console.log('Successfully updated Sheet 1 with latest data!');
         }
 
         // Update Sheet 2 (Logs)

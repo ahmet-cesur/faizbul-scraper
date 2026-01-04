@@ -33,13 +33,11 @@ import com.acesur.faizbul.util.HolidayUtils
 import com.acesur.faizbul.data.InterestRate
 import com.acesur.faizbul.data.ScraperSpec
 import com.acesur.faizbul.ui.components.AdBanner
-import com.acesur.faizbul.ui.components.RateFetcher
 import com.acesur.faizbul.ui.viewmodels.ResultViewModel
 import com.acesur.faizbul.ui.theme.*
 
 import com.acesur.faizbul.data.ScraperResultState
 import com.acesur.faizbul.data.ScraperStatus
-import com.acesur.faizbul.data.ScraperScripts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -158,8 +156,7 @@ fun ResultPage(
                             state = resultState,
                             amount = inputAmount,
                             durationDays = durationDays,
-                            isBestDeal = resultState == firstSuccess,
-                            onRetry = { viewModel.retryScraper(resultState.spec) }
+                            isBestDeal = resultState == firstSuccess
                         )
                     }
 
@@ -308,7 +305,7 @@ fun SessionBestCard(rate: InterestRate) {
 }
 
 @Composable
-fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isBestDeal: Boolean, onRetry: () -> Unit) {
+fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isBestDeal: Boolean) {
     val isDarkTheme = MaterialTheme.colorScheme.background == NavyDark
     
     val brandColor = when {
