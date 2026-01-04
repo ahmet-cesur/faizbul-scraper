@@ -54,11 +54,11 @@ module.exports = {
                         
                         // Inline duration parsing for İş Bankası formats like "1-7 gün", "32-45 gün"
                         var durParsed = null;
-                        var durMatch = durTxt.match(/(\\d+)\\s*[-–]\\s*(\\d+)/);
+                        var durMatch = durTxt.match(/(\d+)\s*[-–]\s*(\d+)/);
                         if (durMatch) {
                             durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
                         } else {
-                            var singleMatch = durTxt.match(/(\\d+)/);
+                            var singleMatch = durTxt.match(/(\d+)/);
                             if (singleMatch && durTxt.toLowerCase().includes('gün')) {
                                 durParsed = { min: parseInt(singleMatch[1]), max: parseInt(singleMatch[1]) };
                             } else {

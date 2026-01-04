@@ -94,7 +94,7 @@ module.exports = {
                         var rateTxt = cell.innerText.trim();
                         
                         // Extract rate: "32 Gün\n%48,00" -> 48.00
-                        var match = rateTxt.match(/%\\s*([0-9,]+)/);
+                        var match = rateTxt.match(/%\s*([0-9,]+)/);
                         var rate = match ? smartParseNumber(match[1]) : (smartParseNumber(rateTxt) < 100 ? smartParseNumber(rateTxt) : null);
                         
                         rowRates.push(rate);

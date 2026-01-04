@@ -57,11 +57,11 @@ module.exports = {
                         
                         // Inline duration parsing for patterns like "32-45 GÜN"
                         var durParsed = null;
-                        var durMatch = durTxt.match(/(\\d+)\\s*[-–]\\s*(\\d+)/);
+                        var durMatch = durTxt.match(/(\d+)\s*[-–]\s*(\d+)/);
                         if (durMatch) {
                             durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
                         } else {
-                            var singleMatch = durTxt.match(/(\\d+)/);
+                            var singleMatch = durTxt.match(/(\d+)/);
                             if (singleMatch && durTxt.toUpperCase().includes('GÜN')) {
                                 durParsed = { min: parseInt(singleMatch[1]), max: parseInt(singleMatch[1]) };
                             } else {

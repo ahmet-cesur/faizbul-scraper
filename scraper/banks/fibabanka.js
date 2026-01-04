@@ -64,11 +64,11 @@ module.exports = {
                             
                             // Inline duration parsing
                             var durParsed = null;
-                            var durMatch = durTxt.match(/(\\d+)\\s*[-–]\\s*(\\d+)/);
+                            var durMatch = durTxt.match(/(\d+)\s*[-–]\s*(\d+)/);
                             if (durMatch) {
                                 durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
                             } else {
-                                var singleMatch = durTxt.match(/(\\d+)/);
+                                var singleMatch = durTxt.match(/(\d+)/);
                                 if (singleMatch && durTxt.toUpperCase().includes('GÜN')) {
                                     durParsed = { min: parseInt(singleMatch[1]), max: parseInt(singleMatch[1]) };
                                 } else {
@@ -102,7 +102,7 @@ module.exports = {
                         var durationHeaders = [];
                         for (var i = 1; i < headerCells.length; i++) {
                             var txt = headerCells[i].innerText.trim();
-                            var durMatch = txt.match(/(\\d+)\\s*[-–]\\s*(\\d+)/);
+                            var durMatch = txt.match(/(\d+)\s*[-–]\s*(\d+)/);
                             if (durMatch) {
                                 durationHeaders.push({ label: txt, minDays: parseInt(durMatch[1]), maxDays: parseInt(durMatch[2]) });
                             }
