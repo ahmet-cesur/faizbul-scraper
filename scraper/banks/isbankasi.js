@@ -53,11 +53,18 @@ module.exports = {
             }
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                
+                // Try to find table immediately, maybe we don't need to switch channel
+                if (findIsBankasiRate()) { clearInterval(interval); return; }
+
                 if (step === 0) {
                     var sel = document.querySelector('#channelCode');
                     if (sel) {
                         sel.value = 'ISCEP';
                         sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        // If channel selector isn't found, maybe the page structure changed, but let's wait a bit more
+                        console.log('INTERN: #channelCode not found');
                     }
                     step = 1;
                 } else {

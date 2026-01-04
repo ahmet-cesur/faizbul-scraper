@@ -62,7 +62,12 @@ module.exports = {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                 if (step === 0) {
                     var btn = Array.from(document.querySelectorAll('h2.accordion__title, button')).find(h => h.innerText.includes('e-Mevduat'));
-                    if (btn) { btn.click(); step = 1; }
+                    if (btn) { 
+                        btn.click();
+                        // Try native click just in case 
+                        if (btn.onclick) btn.onclick();
+                        step = 1; 
+                    }
                     else { step = 1; } // Try extracting anyway if button not found (might be already open)
                 } else {
                     if (extractFibabankaTable()) clearInterval(interval);

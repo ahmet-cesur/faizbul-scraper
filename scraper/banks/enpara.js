@@ -6,16 +6,37 @@ module.exports = {
         try {
             var amount = 100000; var duration = 32; var attempts = 0;
             \n            function extractEnparaTable() {
-                var table = document.querySelector('.enpara-deposit-interest-rates__flex-table--active') || document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || document.querySelector('.enpara-deposit-interest-rates__flex-table');
+                var table = document.querySelector('.enpara-deposit-interest-rates__flex-table--active') || 
+                           document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || 
+                           document.querySelector('.enpara-deposit-interest-rates__flex-table');
+
+                // Fallback: Find by content if class search fails
+                if (!table) {
+                    var allDivs = document.querySelectorAll('div');
+                    for (var i = 0; i < allDivs.length; i++) {
+                        if (allDivs[i].innerText.includes('32 Gün') && allDivs[i].innerText.includes('92 Gün')) {
+                            // Verify it has children that look like rows
+                            if (allDivs[i].children.length > 3) {
+                                table = allDivs[i];
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 if (!table) return false;
-                var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item'));
+                var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item, div[class*="flex-table-item"]'));
+                // Use children if querySelectorAll fails to find items but table was found by content
+                if (allItems.length < 5) { 
+                    allItems = Array.from(table.children).filter(c => c.innerText.trim().length > 0);
+                }
                 if (allItems.length < 5) return false;
                 
                 // Find all duration headers first
                 var durationHeaders = [];
                 var firstRowItems = allItems.slice(0, 10); // Check first few items for headers
                 for (var i = 0; i < firstRowItems.length; i++) {
-                    var headEl = firstRowItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head');
+                    var headEl = firstRowItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head') || firstRowItems[i];
                     if (headEl) {
                         var txt = headEl.innerText.trim();
                         if (txt.toLowerCase().includes('gün')) {
@@ -34,7 +55,9 @@ module.exports = {
                     if (items.length < 5) continue;
                     
                     var amountItem = items[0];
-                    var amountEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value') || amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-head');
+                    var amountEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value') || 
+                                   amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-head') || 
+                                   amountItem;
                     if (!amountEl) continue;
                     var amountTxt = amountEl.innerText.trim();
                     if (!amountTxt.match(/\\d/) && !amountTxt.includes('TL')) continue; // Skip header items that might have been picked up
@@ -55,7 +78,7 @@ module.exports = {
                     amountHeaders.push({ label: amountTxt, minAmount: minAmt, maxAmount: maxAmt });
                     var rowRates = [];
                     for (var c = 1; c < 5; c++) {
-                        var valEl = items[c].querySelector('.enpara-deposit-interest-rates__flex-table-value');
+                        var valEl = items[c].querySelector('.enpara-deposit-interest-rates__flex-table-value') || items[c];
                         var rate = valEl ? smartParseNumber(valEl.innerText) : null;
                         rowRates.push(rate);
                     }

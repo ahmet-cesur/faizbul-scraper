@@ -49,7 +49,12 @@ module.exports = {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                 if (step === 0) {
                     var acc = Array.from(document.querySelectorAll('.accordion-header, h2, button')).find(el => el.innerText.toUpperCase().includes('MEVDUAT'));
-                    if (acc) { acc.click(); step = 1; }
+                    if (acc) { 
+                        acc.click(); 
+                        // Try native click just in case
+                        if (acc.onclick) acc.onclick();
+                        step = 1; 
+                    }
                     else { step = 1; }
                 } else {
                     if (extractAlternatifTable()) clearInterval(interval);
