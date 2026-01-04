@@ -1,6 +1,6 @@
 module.exports = {
     name: "Fibabanka",
-    url: "https://www.fibabanka.com.tr/faiz-ucret-ve-komisyonlar/bireysel-faiz-oranlari/mevduat-faiz-oranlari",
+    url: "https://www.fibabanka.com.tr/faiz-ve-ucretler/bireysel-faiz-oranlari/mevduat-faiz-oranlari",
     desc: "e-Mevduat",
     script: `(function() {
         try {

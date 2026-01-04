@@ -10,61 +10,57 @@ module.exports = {
                            document.querySelector('.enpara-deposit-interest-rates__flex-table.TRY') || 
                            document.querySelector('.enpara-deposit-interest-rates__flex-table');
 
-                // Fallback: Find by content if class search fails
-                if (!table) {
-                    var allDivs = document.querySelectorAll('div');
-                    for (var i = 0; i < allDivs.length; i++) {
-                        if (allDivs[i].innerText.includes('32 Gün') && allDivs[i].innerText.includes('92 Gün')) {
-                            // Verify it has children that look like rows
-                            if (allDivs[i].children.length > 3) {
-                                table = allDivs[i];
-                                break;
-                            }
-                        }
-                    }
-                }
-
                 if (!table) return false;
-                var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item, div[class*="flex-table-item"]'));
-                // Use children if querySelectorAll fails to find items but table was found by content
-                if (allItems.length < 5) { 
-                    allItems = Array.from(table.children).filter(c => c.innerText.trim().length > 0);
-                }
+
+                // Enpara Flex Table Structure:
+                // It's a series of DIVs (.enpara-deposit-interest-rates__flex-table-item)
+                // The first row (headers) has items 0 to N.
+                // Then a HR separator.
+                // Then rows...
+                
+                var allItems = Array.from(table.querySelectorAll('.enpara-deposit-interest-rates__flex-table-item'));
                 if (allItems.length < 5) return false;
                 
-                // Find all duration headers first
+                // Identify headers from the first few items
+                // Usually: "Mevduat büyüklüğü", "32 Gün", "46 Gün", "92 Gün", "181 Gün"
                 var durationHeaders = [];
-                var firstRowItems = allItems.slice(0, 10); // Check first few items for headers
-                for (var i = 0; i < firstRowItems.length; i++) {
-                    var headEl = firstRowItems[i].querySelector('.enpara-deposit-interest-rates__flex-table-head') || firstRowItems[i];
-                    if (headEl) {
-                        var txt = headEl.innerText.trim();
-                        if (txt.toLowerCase().includes('gün')) {
-                            var num = parseInt(txt.replace(/[^0-9]/g, ''));
-                            durationHeaders.push({ label: txt, minDays: num, maxDays: num, indexInRow: i % 5 });
-                        }
-                    }
-                }
-                if (durationHeaders.length === 0) return false;
+                var numColumns = 5; // Default assumption
                 
+                // Scan first row to find durations
+                for(var i=1; i<allItems.length; i++) {
+                    var txt = allItems[i].innerText.trim();
+                    // If we hit a value with "TL" or a number that looks like a rate immediately, we might have moved to next row?
+                    // But Enpara headers are distinct.
+                    if (txt.toLowerCase().includes('gün')) {
+                        var num = parseInt(txt.replace(/[^0-9]/g, ''));
+                        durationHeaders.push({ label: txt, minDays: num, maxDays: num, colIndex: i });
+                    } else if (allItems[i].querySelector('hr') || txt.includes('%') || txt === '') {
+                        // End of header row
+                        numColumns = i; // This logic might be brittle if there's no clear break, but usually headers are top 5
+                        break;
+                    }
+                    if (durationHeaders.length >= 4) { numColumns = i + 1; break; } // stop if we have typical 4 durations
+                }
+                
+                if (durationHeaders.length === 0) return false;
+
                 var amountHeaders = [];
                 var tableRows = [];
-                // Process in steps of 5
-                for (var i = 0; i < allItems.length; i += 5) {
-                    var items = allItems.slice(i, i + 5);
-                    if (items.length < 5) continue;
+                
+                // Process rows. 
+                // We skip the first 'numColumns' items (headers).
+                // Then we take chunks of 'numColumns'.
+                for (var i = numColumns; i < allItems.length; i += numColumns) {
+                    var chunk = allItems.slice(i, i + numColumns);
+                    if (chunk.length < numColumns) break;
                     
-                    var amountItem = items[0];
-                    var amountEl = amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-value') || 
-                                   amountItem.querySelector('.enpara-deposit-interest-rates__flex-table-head') || 
-                                   amountItem;
-                    if (!amountEl) continue;
-                    var amountTxt = amountEl.innerText.trim();
-                    if (!amountTxt.match(/\\d/) && !amountTxt.includes('TL')) continue; // Skip header items that might have been picked up
+                    var amountItem = chunk[0];
+                    var amountTxt = amountItem.innerText.trim();
+                    // Clean up hidden labels if present
+                    amountTxt = amountTxt.split('\\n')[0].trim(); 
                     
-                    if (amountTxt.toLowerCase().includes('mevduat')) continue; // Skip "Mevduat büyüklüğü" header
-                    
-                    var minAmt = 0, maxAmt = 999999999;
+                    // Parse amount range
+                     var minAmt = 0, maxAmt = 999999999;
                     if (amountTxt.indexOf('-') > -1) {
                         var parts = amountTxt.split('-');
                         minAmt = smartParseNumber(parts[0]);
@@ -75,24 +71,34 @@ module.exports = {
                         minAmt = smartParseNumber(amountTxt);
                     }
                     
+                    if (minAmt === 0 && !amountTxt.includes('TL')) continue; // Skip invalid rows
+                    
                     amountHeaders.push({ label: amountTxt, minAmount: minAmt, maxAmount: maxAmt });
+                    
                     var rowRates = [];
-                    for (var c = 1; c < 5; c++) {
-                        var valEl = items[c].querySelector('.enpara-deposit-interest-rates__flex-table-value') || items[c];
-                        var rate = valEl ? smartParseNumber(valEl.innerText) : null;
+                    for (var d = 0; d < durationHeaders.length; d++) {
+                        var colIdx = durationHeaders[d].colIndex; // This is relative to row start? No, colIndex was absolute.
+                        // Relative index in chunk is colIdx.
+                        // Wait, if headers are 0,1,2,3,4. 1 is 32 days.
+                        // Then in chunk, index 1 should be 32 days rate.
+                        var cell = chunk[colIdx];
+                        var rateTxt = cell.innerText.trim();
+                        
+                        // Extract rate: "32 Gün\n%48,00" -> 48.00
+                        var match = rateTxt.match(/%\\s*([0-9,]+)/);
+                        var rate = match ? smartParseNumber(match[1]) : (smartParseNumber(rateTxt) < 100 ? smartParseNumber(rateTxt) : null);
+                        
                         rowRates.push(rate);
                     }
-                    tableRows.push({ label: amountTxt, rates: rowRates });
+                     tableRows.push({ label: amountTxt, rates: rowRates });
                 }
                 
                 if (tableRows.length === 0) return false;
 
-                // Re-pivot: Duration headers become the rows for Android app's expectations
-                // Each outputRow is a duration, and its rates array contains values for each amount header column
-                var outputRows = durationHeaders.map(function(d, dIdx) {
+                // Pivot for Android
+                var outputRows = durationHeaders.map(function(d, i) {
                     var ratesForThisDuration = tableRows.map(function(r) {
-                        // d.indexInRow - 1 because rowRates skip the amount column
-                        return r.rates[d.indexInRow - 1];
+                        return r.rates[i];
                     });
                     return {
                         label: d.label,

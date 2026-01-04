@@ -35,8 +35,15 @@ module.exports = {
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                 if (step === 0) {
-                    if (typeof $ !== 'undefined' && $('#type').length) { $('#type').val('1').trigger('change'); }
-                    else { var b = document.querySelector('#type'); if(b) { b.value='1'; b.dispatchEvent(new Event('change',{bubbles:true})); } }
+                    // Try to find the dropdown. Value '2' is "İnternet/Mobil"
+                    if (typeof $ !== 'undefined' && $('#type').length) { $('#type').val('2').trigger('change'); }
+                    else { 
+                        var b = document.querySelector('#type'); 
+                        if(b) { 
+                            b.value = '2'; 
+                            b.dispatchEvent(new Event('change', {bubbles:true})); 
+                        } 
+                    }
                     step = 1;
                 } else {
                     if (extractHalkbankTable()) clearInterval(interval);

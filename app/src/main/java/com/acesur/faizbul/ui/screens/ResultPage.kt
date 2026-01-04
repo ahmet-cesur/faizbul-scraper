@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.acesur.faizbul.R
@@ -866,9 +867,10 @@ fun RateTableDialog(
                                 // Duration header
                                 Text(
                                     text = "Vade",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.width(100.dp).padding(8.dp)
+                                    modifier = Modifier.width(80.dp).padding(4.dp)
                                 )
                                 // Amount headers
                                 headers.forEachIndexed { index, header ->
@@ -876,12 +878,13 @@ fun RateTableDialog(
                                     Text(
                                         text = header.label,
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         fontWeight = if (isMatchingCol) FontWeight.ExtraBold else FontWeight.Bold,
                                         color = if (isMatchingCol) highlightColor else Color.Unspecified,
                                         modifier = Modifier
-                                            .width(90.dp)
+                                            .width(70.dp)
                                             .background(if (isMatchingCol) highlightBgColor else Color.Transparent)
-                                            .padding(8.dp)
+                                            .padding(4.dp)
                                     )
                                 }
                             }
@@ -901,27 +904,29 @@ fun RateTableDialog(
                                     // Duration cell
                                     Text(
                                         text = row.label,
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         fontWeight = if (isMatchingRow) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isMatchingRow) highlightColor else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.width(100.dp).padding(8.dp)
+                                        modifier = Modifier.width(80.dp).padding(4.dp)
                                     )
                                     // Rate cells
                                     row.rates.forEachIndexed { colIndex, rate ->
                                         val isHighlightedCell = colIndex == matchingColIndex && isMatchingRow
                                         Text(
                                             text = if (rate != null) formatRate(rate) else "-",
-                                            style = MaterialTheme.typography.bodySmall,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 10.sp,
                                             fontWeight = if (isHighlightedCell) FontWeight.ExtraBold else FontWeight.Normal,
                                             color = if (isHighlightedCell) Color.White else MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier
-                                                .width(90.dp)
+                                                .width(70.dp)
                                                 .background(
                                                     if (isHighlightedCell) highlightColor 
                                                     else if (colIndex == matchingColIndex) highlightBgColor.copy(alpha = 0.3f)
                                                     else Color.Transparent
                                                 )
-                                                .padding(8.dp)
+                                                .padding(4.dp)
                                         )
                                     }
                                 }
