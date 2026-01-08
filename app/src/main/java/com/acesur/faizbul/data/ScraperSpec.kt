@@ -64,9 +64,7 @@ data class ScraperSpec(
             ScraperSpec("VakıfBank - Standart", "https://www.vakifbank.com.tr/tr/hesaplama-araclari/mevduat-faiz-oranlari", "E-Vadeli Hesabı", "VakıfBank"),
             ScraperSpec("Odeabank", "https://www.odeabank.com.tr/bireysel/mevduat/vadeli-mevduat", "İnternet/Mobil Vadeli", "Odeabank"),
             ScraperSpec("Denizbank", "https://www.denizbank.com/hesap/e-mevduat", "E-Mevduat", "DenizBank"),
-            ScraperSpec("Fibabanka", "https://www.fibabanka.com.tr/faiz-ucret-ve-komisyonlar/bireysel-faiz-oranlari/mevduat-faiz-oranlari", "e-Mevduat", "Fibabanka"),
-            ScraperSpec("Enpara", "https://www.enpara.com/hesaplar/vadeli-mevduat-hesabi", "Vadeli Mevduat", "Enpara"),
-            ScraperSpec("İş Bankası", "https://www.isbank.com.tr/vadeli-tl", "İşCep Vadeli TL", "İş Bankası")
+            ScraperSpec("Fibabanka", "https://www.fibabanka.com.tr/faiz-ucret-ve-komisyonlar/bireysel-faiz-oranlari/mevduat-faiz-oranlari", "e-Mevduat", "Fibabanka")
         )
     }
 }

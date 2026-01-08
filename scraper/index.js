@@ -114,9 +114,7 @@ async function main() {
         require('./banks/vakifbank-standart'),
         require('./banks/odeabank'),
         require('./banks/denizbank'),
-        require('./banks/fibabanka'),
-        require('./banks/enpara'),
-        require('./banks/isbankasi-iscep')
+        require('./banks/fibabanka')
     ];
 
     const allFlattenedRows = [];
