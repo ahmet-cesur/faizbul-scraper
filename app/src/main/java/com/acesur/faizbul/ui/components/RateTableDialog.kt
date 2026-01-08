@@ -24,7 +24,7 @@ import java.text.DecimalFormatSymbols
 fun formatSharedRate(rate: Double): String {
     val symbols = DecimalFormatSymbols(java.util.Locale.forLanguageTag("tr-TR"))
     val df = DecimalFormat("0.00", symbols)
-    return "%" + df.format(rate)
+    return df.format(rate) + "%"
 }
 
 @Composable

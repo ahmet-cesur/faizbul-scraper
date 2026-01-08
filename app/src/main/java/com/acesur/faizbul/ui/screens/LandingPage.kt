@@ -14,9 +14,12 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -195,29 +198,11 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             
-            // Top Row for Settings and Bank Selection
+            // Top Row for Settings
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                IconButton(
-                    onClick = { navController.navigate("bankSelection") },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            CircleShape
-                        )
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.List,
-                        contentDescription = "Banka Seçimi",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-
                 IconButton(
                     onClick = { navController.navigate("settings") },
                     modifier = Modifier
@@ -306,60 +291,128 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 textAlign = TextAlign.Center
             )
 
-    // Pre-fetch data when screen opens
-    LaunchedEffect(Unit) {
-        // Use the Repository directly to warm up the cache
-        com.acesur.faizbul.data.GoogleSheetRepository.prefetch()
-    }
+            // 1. Fetch Best Offer
+            var bestOffer by remember { mutableStateOf<com.acesur.faizbul.data.BestOffer?>(null) }
+            LaunchedEffect(Unit) {
+                // Use the Repository directly to warm up and get best offer
+                com.acesur.faizbul.data.GoogleSheetRepository.prefetch()
+                val offers = com.acesur.faizbul.data.GoogleSheetRepository.getBestOffers()
+                bestOffer = offers.firstOrNull()
+            }
 
-    // ... (rest of code)
-    
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 2. Inputs (Moved Up)
+            // Amount Input
+            PremiumTextField(
+                value = amount,
+                onValueChange = { if (it.all { char -> char.isDigit() }) amount = it },
+                label = stringResource(id = R.string.enter_amount),
+                leadingIcon = {
+                    Text(
+                        "₺",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Emerald500,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                visualTransformation = ThousandSeparatorTransformation(),
+                onFocusChange = { if (it) amount = "" }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Duration Input
+            PremiumTextField(
+                value = duration,
+                onValueChange = { 
+                    duration = it
+                    selectedDurationChip = it.toIntOrNull()
+                },
+                label = stringResource(id = R.string.enter_duration),
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = Emerald500
+                    )
+                },
+                suffix = {
+                    Text(
+                        "gün",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                },
+                onFocusChange = { if (it) duration = "" }
+            )
+
             Spacer(modifier = Modifier.height(20.dp))
 
-            // "Hızlı Getir" Auto-fill & Search Button with Premium Style
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .shadow(
-                        elevation = 8.dp,
-                        shape = RoundedCornerShape(16.dp),
-                        ambientColor = Emerald500.copy(alpha = 0.3f),
-                        spotColor = Emerald500.copy(alpha = 0.3f)
-                    )
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Emerald600, Emerald500)
-                        )
-                    )
-                    .clickable {
-                        navController.navigate("quick_results")
-                    },
-                contentAlignment = Alignment.Center
+            // Quick Duration Chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "HIZLI GETİR (EN YÜKSEK ORANLAR)",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        ),
-                        color = Color.White
+                durationPresets.forEach { days ->
+                    val isSelected = duration == days.toString()
+                    DurationChip(
+                        days = days,
+                        isSelected = isSelected,
+                        onClick = {
+                            duration = days.toString()
+                            selectedDurationChip = days
+                        }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // Real-time Value Date Warning (16:00 Rule)
+            val calendar = Calendar.getInstance()
+            val hour = calendar.get(Calendar.HOUR_OF_DAY)
+            val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+            val isDelayed = hour >= 16 || dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
+            
+            if (isDelayed) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Valör Uyarısı",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Hafta sonu veya saat 16:00 sonrası açılan hesaplarda paranız hemen bloke edilir, ancak faiz ilk iş günü işlemeye başlar.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
 
-            // Main Action Button with gradient and shimmer
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 3. Main Action Button (Moved Up)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -418,120 +471,59 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 }
             }
 
+            // 4. Hızlı Öneri Section (Moved Down header)
+            Spacer(modifier = Modifier.weight(1f))
+            
+            // Extra padding to ensure separation from the main button if screen is small
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Amount Input Field with premium styling
-            PremiumTextField(
-                value = amount,
-                onValueChange = { if (it.all { char -> char.isDigit() }) amount = it },
-                label = stringResource(id = R.string.enter_amount),
-                leadingIcon = {
-                    Text(
-                        "₺",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Emerald500,
-                        fontWeight = FontWeight.Bold
+            // "Hızlı Öneri" Header Box (Non-clickable)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp) // Slightly smaller height for a header
+                    .shadow(
+                        elevation = 4.dp, // Reduced elevation
+                        shape = RoundedCornerShape(16.dp),
+                        ambientColor = Emerald500.copy(alpha = 0.3f),
+                        spotColor = Emerald500.copy(alpha = 0.3f)
                     )
-                },
-                visualTransformation = ThousandSeparatorTransformation(),
-                onFocusChange = { if (it) amount = "" }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Duration Input Field
-            PremiumTextField(
-                value = duration,
-                onValueChange = { 
-                    duration = it
-                    selectedDurationChip = it.toIntOrNull()
-                },
-                label = stringResource(id = R.string.enter_duration),
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = Emerald500
-                    )
-                },
-                suffix = {
-                    Text(
-                        "gün",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                },
-                onFocusChange = { if (it) duration = "" }
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Quick Duration Chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                durationPresets.forEach { days ->
-                    val isSelected = duration == days.toString()
-                    DurationChip(
-                        days = days,
-                        isSelected = isSelected,
-                        onClick = {
-                            duration = days.toString()
-                            selectedDurationChip = days
-                        }
-                    )
-                }
-            }
-
-
-
-            // Real-time Value Date Warning (16:00 Rule)
-            val calendar = Calendar.getInstance()
-            val hour = calendar.get(Calendar.HOUR_OF_DAY)
-            val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-            val isDelayed = hour >= 16 || dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
-            
-            if (isDelayed) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Emerald600, Emerald500)
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Valör Uyarısı",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "Hafta sonu veya saat 16:00 sonrası açılan hesaplarda paranız hemen bloke edilir, ancak faiz ilk iş günü işlemeye başlar.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Star, // Changed icon to Star to represent "Recommendation/Suggestion"
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "HIZLI ÖNERİ",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        ),
+                        color = Color.White
+                    )
                 }
             }
-
-
-
-            Spacer(modifier = Modifier.weight(1f))
+            
+            // 5. Result Card (Best Offer)
+            if (bestOffer != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                // Note: QuickOfferCard needs to be available. It is in QuickResultsPage.kt
+                QuickOfferCard(bestOffer!!)
+                Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             
             AdBanner()
         }
@@ -630,5 +622,150 @@ fun DurationChip(
             ),
             color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+fun QuickOfferCard(offer: com.acesur.faizbul.data.BestOffer) {
+    val df = java.text.DecimalFormat("#,###")
+    
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = offer.bankName,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "En Yüksek Oran",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Surface(
+                    color = Emerald500.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "%${offer.rate}",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Emerald600
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(modifier = Modifier.alpha(0.1f))
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "MİNİMUM TUTAR",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "₺${df.format(offer.minAmount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "VADE ARALIKLARI",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        letterSpacing = 1.sp
+                    )
+                    val daysText = offer.dayRanges.joinToString(", ") { (min, max) ->
+                        if (max >= 9999) "$min+ Gün" else "$min-$max Gün"
+                    }
+                    Text(
+                        text = daysText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(modifier = Modifier.alpha(0.1f))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            var showTableDialog by remember { mutableStateOf(false) }
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // View Table button (if table data exists)
+                if (offer.tableJson != null) {
+                    OutlinedButton(
+                        onClick = { showTableDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Faiz Tablosunu Görüntüle", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                
+                // Website link button
+                if (offer.url.isNotEmpty()) {
+                    Button(
+                        onClick = { uriHandler.openUri(offer.url) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Bankanın Web Sitesine Git", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+            
+            // Latest update tag
+            if (offer.timestamp > 0) {
+                val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                Text(
+                    text = "Son Güncelleme: ${sdf.format(java.util.Date(offer.timestamp))}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            }
+
+            if (showTableDialog && offer.tableJson != null) {
+                com.acesur.faizbul.ui.components.RateTableDialog(
+                    bankName = offer.bankName,
+                    tableJson = offer.tableJson,
+                    amount = offer.minAmount,
+                    durationDays = offer.dayRanges.firstOrNull()?.first ?: 32,
+                    onDismiss = { showTableDialog = false }
+                )
+            }
+        }
     }
 }

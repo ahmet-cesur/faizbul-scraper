@@ -121,6 +121,7 @@ async function main() {
     const executionLogs = [];
     const executionDate = new Date().toISOString();
     const startTime = Date.now();
+    const successfulBankNames = new Set();
 
     for (const bank of banks) {
         console.log(`--- Scraping ${bank.name} ---`);
@@ -162,6 +163,7 @@ async function main() {
             errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
+                successfulBankNames.add(bank.name);
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
@@ -241,6 +243,31 @@ async function main() {
         if (allFlattenedRows.length > 0) {
             console.log('Updating Data Sheet (Sheet 1)...');
             const dataSheet = doc.sheetsByIndex[0];
+
+            // PRESERVE OLD DATA FOR FAILED BANKS
+            try {
+                const existingRows = await dataSheet.getRows();
+                // Ensure headers are loaded
+                await dataSheet.loadHeaderRow();
+                const headers = dataSheet.headerValues;
+
+                if (existingRows.length > 0 && headers.length > 0) {
+                    for (const row of existingRows) {
+                        // Bank name is at index 1 (Column B) based on app parser
+                        const bankName = (headers.length > 1) ? row.get(headers[1]) : null;
+
+                        if (bankName && !successfulBankNames.has(bankName)) {
+                            // This bank failed this run, so preserve its old data
+                            // Map values back to array order based on headers
+                            const preservedRow = headers.map(h => row.get(h));
+                            allFlattenedRows.push(preservedRow);
+                        }
+                    }
+                    console.log(`Preservation step complete. Total rows with preserved data: ${allFlattenedRows.length}`);
+                }
+            } catch (err) {
+                console.warn("Could not preserve old rows (Non-fatal):", err.message);
+            }
 
             // Clear existing rows to keep only 1 line per amount-days combo (latest results).
             // If some banks fail this run, they will be removed from Sheet 1 until they succeed again.

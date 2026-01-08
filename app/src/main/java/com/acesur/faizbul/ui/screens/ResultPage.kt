@@ -119,22 +119,9 @@ fun ResultPage(
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize().padding(16.dp)) {
             
-            // Date Info Section
-            DateInfoBanner(durationDays)
+
             
-            // Header Row
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = String.format(java.util.Locale.getDefault(), stringResource(R.string.search_header_format), inputAmount, durationDays),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+
 
             val sortedResults = viewModel.resultsMap.values
                 .filter { result -> 
@@ -156,11 +143,27 @@ fun ResultPage(
 
             val listState = rememberLazyListState()
             
-            // Force scroll to top when results are first loaded or significantly change
-            // this prevents the "zoom" or starting at bottom issue
-            LaunchedEffect(sortedResults.size > 0) {
-                if (sortedResults.isNotEmpty()) {
-                    listState.scrollToItem(0)
+
+
+            val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
+            val currentSortedResults by rememberUpdatedState(sortedResults)
+
+            // Intro Animation: Expand all -> Wait -> Collapse sequentially
+            LaunchedEffect(Unit) {
+                // Wait for data to load
+                while (currentSortedResults.isEmpty()) {
+                    kotlinx.coroutines.delay(50)
+                }
+                
+                // Keep expanded for 1.0s
+                kotlinx.coroutines.delay(1000)
+                
+                // Snapshot the list order to collapse from top to bottom (excluding the first/best one)
+                val idsToCollapse = currentSortedResults.drop(1).map { it.spec.name }
+                
+                for (id in idsToCollapse) {
+                    expandedStates[id] = false
+                    kotlinx.coroutines.delay(300)
                 }
             }
 
@@ -172,6 +175,24 @@ fun ResultPage(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
+                    item {
+                         // DateInfo Section
+                        DateInfoBanner(durationDays)
+            
+                        // Header Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = String.format(java.util.Locale.getDefault(), stringResource(R.string.search_header_format), inputAmount, durationDays),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                     val maxRateValue = sortedResults
                         .filter { it.status == ScraperStatus.SUCCESS }
                         .maxOfOrNull { it.rate?.rate ?: 0.0 } ?: -1.0
@@ -180,13 +201,18 @@ fun ResultPage(
                         val isBestDeal = resultState.status == ScraperStatus.SUCCESS && 
                                         resultState.rate?.rate == maxRateValue && 
                                         maxRateValue > 0
+                        
+                        // Default to TRUE (Expanded) if key not present, so they start expanded
+                        val isExpanded = expandedStates[resultState.spec.name] ?: true
 
                         AnimatedCardWrapper(index = index) {
                             ResultCard(
                                 state = resultState,
                                 amount = inputAmount,
                                 durationDays = durationDays,
-                                isBestDeal = isBestDeal
+                                isBestDeal = isBestDeal,
+                                isExpanded = isExpanded,
+                                onToggle = { expandedStates[resultState.spec.name] = !isExpanded }
                             )
                         }
                     }
@@ -231,7 +257,7 @@ private fun formatRate(rate: Double): String {
     val symbols = DecimalFormatSymbols(java.util.Locale.forLanguageTag("tr-TR"))
     // Change to "0.00" to always show 2 decimal places as requested
     val df = DecimalFormat("0.00", symbols)
-    return "%" + df.format(rate)
+    return df.format(rate) + "%"
 }
 
 // Animated card entrance wrapper with staggered delay
@@ -335,7 +361,14 @@ fun SessionBestCard(rate: InterestRate) {
 }
 
 @Composable
-fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isBestDeal: Boolean) {
+fun ResultCard(
+    state: ScraperResultState, 
+    amount: Double, 
+    durationDays: Int, 
+    isBestDeal: Boolean,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
     val isDarkTheme = MaterialTheme.colorScheme.background == NavyDark
     
     val brandColor = when {
@@ -354,7 +387,6 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
         else -> if (isDarkTheme) Emerald400 else Emerald500
     }
 
-    var isExpanded by remember { mutableStateOf(false) }
     var showTableDialog by remember { mutableStateOf(false) }
 
     val hasHistory = state.lastSuccessfulRate != null && state.lastSuccessfulTimestamp != null
@@ -411,12 +443,7 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
         else -> brandColor.copy(alpha = 0.3f)
     }
 
-    // Contrast-aware text colors
-    val cardContentColor = when {
-        isShowingCachedData && !isDarkTheme -> Color.Black
-        isDarkTheme -> Color.White
-        else -> Color.Black
-    }
+    val cardContentColor = if (isDarkTheme) Color.White else Color.Black
     val cardSecondaryColor = cardContentColor.copy(alpha = 0.7f)
     val cardOutlineColor = cardContentColor.copy(alpha = 0.5f)
 
@@ -430,10 +457,10 @@ fun ResultCard(state: ScraperResultState, amount: Double, durationDays: Int, isB
                 ambientColor = if (isBestDeal) Amber500.copy(alpha = 0.3f) else brandColor.copy(alpha = 0.15f),
                 spotColor = if (isBestDeal) Amber500.copy(alpha = 0.3f) else brandColor.copy(alpha = 0.15f)
             )
-            .then(if (state.rate != null) Modifier.clickable { isExpanded = !isExpanded } else Modifier),
+            .then(if (state.rate != null) Modifier.clickable { onToggle() } else Modifier),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isShowingCachedData && !isDarkTheme) Color(0xFFFFF9C4) else MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         border = androidx.compose.foundation.BorderStroke(
             width = if (isActivelyWorking) 2.dp else if (isBestDeal && (state.status == ScraperStatus.SUCCESS || isShowingCachedData)) 2.dp else 1.dp, 

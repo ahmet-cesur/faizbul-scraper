@@ -15,10 +15,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.acesur.faizbul.ui.screens.BankSelectionPage
+
 import com.acesur.faizbul.ui.screens.DevTriggerPage
 import com.acesur.faizbul.ui.screens.LandingPage
-import com.acesur.faizbul.ui.screens.QuickResultsPage
+
 import com.acesur.faizbul.ui.screens.ResultPage
 import com.acesur.faizbul.ui.screens.SettingsPage
 import com.acesur.faizbul.ui.screens.SplashScreen
@@ -87,15 +87,11 @@ class MainActivity : ComponentActivity() {
                                 composable("settings") {
                                     SettingsPage(navController)
                                 }
-                                composable("bankSelection") {
-                                    BankSelectionPage(navController)
-                                }
+
                                 composable("dev_trigger") {
                                     DevTriggerPage(navController)
                                 }
-                                composable("quick_results") {
-                                    QuickResultsPage(navController)
-                                }
+
                             }
                         }
                     }

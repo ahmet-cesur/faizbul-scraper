@@ -22,10 +22,7 @@ class ResultViewModel : ViewModel() {
         if (isInitialized) return
         isInitialized = true
         
-        val prefs = context.getSharedPreferences("scraper_prefs", android.content.Context.MODE_PRIVATE)
-        val allScrapers = ScraperSpec.allScrapers.filter { spec ->
-            prefs.getBoolean(spec.name, true)
-        }
+        val allScrapers = ScraperSpec.allScrapers
         
         android.util.Log.d("FaizBul", "Initializing ${allScrapers.size} scrapers")
         
@@ -52,10 +49,7 @@ class ResultViewModel : ViewModel() {
     }
 
     private suspend fun loadAllData(context: android.content.Context, amount: Double, days: Int) {
-        val prefs = context.getSharedPreferences("scraper_prefs", android.content.Context.MODE_PRIVATE)
-        val allScrapers = ScraperSpec.allScrapers.filter { spec ->
-            prefs.getBoolean(spec.name, true)
-        }
+        val allScrapers = ScraperSpec.allScrapers
 
         // Calculate start of today for stale check
         val calendar = java.util.Calendar.getInstance()
