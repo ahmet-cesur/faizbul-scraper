@@ -5,7 +5,8 @@ module.exports = {
     script: `(function() {
         try {
             var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
-            \n            function extractHalkbankTable() {
+            
+            function extractHalkbankTable() {
                 var tables = document.querySelectorAll('table');
                 for (var t = 0; t < tables.length; t++) {
                     var table = tables[t]; var rows = table.querySelectorAll('tr'); if (rows.length < 3) continue;
@@ -27,24 +28,31 @@ module.exports = {
                         }
                         tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                     }
-                    Android.sendRateWithTable(tableRows[0].rates[0], 'İnternet Vadeli TL', 'Halkbank', JSON.stringify({headers: headers, rows: tableRows}));
-                    return true;
+                    if (tableRows.length > 0) {
+                        Android.sendRateWithTable(tableRows[0].rates[0], 'İnternet Vadeli TL', 'Halkbank', JSON.stringify({headers: headers, rows: tableRows}));
+                        return true;
+                    }
                 }
                 return false;
             }
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                
                 if (step === 0) {
-                    // Try to find the dropdown. Value '2' is "İnternet/Mobil"
-                    if (typeof $ !== 'undefined' && $('#type').length) { $('#type').val('2').trigger('change'); }
-                    else { 
-                        var b = document.querySelector('#type'); 
-                        if(b) { 
-                            b.value = '2'; 
-                            b.dispatchEvent(new Event('change', {bubbles:true})); 
-                        } 
+                    var dd = document.querySelector('#type');
+                    if (dd) {
+                        if (typeof $ !== 'undefined') { 
+                            $('#type').val('2').trigger('change'); 
+                        } else { 
+                            dd.value = '2'; 
+                            dd.dispatchEvent(new Event('change', {bubbles:true})); 
+                        }
+                        step = 1;
+                        attempts = 0; // Reset attempts to give time for update
                     }
-                    step = 1;
+                } else if (step === 1) {
+                    // Wait one cycle for table update
+                    step = 2;
                 } else {
                     if (extractHalkbankTable()) clearInterval(interval);
                 }

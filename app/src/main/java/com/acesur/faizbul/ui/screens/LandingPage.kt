@@ -357,7 +357,68 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Main Action Button with gradient and shimmer
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .scale(buttonScale)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = RoundedCornerShape(16.dp),
+                        ambientColor = Emerald500.copy(alpha = 0.4f),
+                        spotColor = Emerald500.copy(alpha = 0.4f)
+                    )
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Emerald600, Emerald500, TealGradient)
+                        )
+                    )
+                    .clickable {
+                        isButtonPressed = true
+                        checkAndNavigate()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // Shimmer overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.2f),
+                                    Color.Transparent
+                                ),
+                                start = Offset(shimmerOffset, 0f),
+                                end = Offset(shimmerOffset + 200f, 0f)
+                            )
+                        )
+                )
+
+                Text(
+                    text = stringResource(id = R.string.find_rates).uppercase(),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    ),
+                    color = Color.White
+                )
+            }
+
+            // Reset button press state
+            LaunchedEffect(isButtonPressed) {
+                if (isButtonPressed) {
+                    kotlinx.coroutines.delay(150)
+                    isButtonPressed = false
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Amount Input Field with premium styling
             PremiumTextField(
@@ -468,66 +529,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
 
-            // Main Action Button with gradient and shimmer
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .scale(buttonScale)
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = RoundedCornerShape(16.dp),
-                        ambientColor = Emerald500.copy(alpha = 0.4f),
-                        spotColor = Emerald500.copy(alpha = 0.4f)
-                    )
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Emerald600, Emerald500, TealGradient)
-                        )
-                    )
-                    .clickable {
-                        isButtonPressed = true
-                        checkAndNavigate()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                // Shimmer overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.2f),
-                                    Color.Transparent
-                                ),
-                                start = Offset(shimmerOffset, 0f),
-                                end = Offset(shimmerOffset + 200f, 0f)
-                            )
-                        )
-                )
-                
-                Text(
-                    text = stringResource(id = R.string.find_rates).uppercase(),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    ),
-                    color = Color.White
-                )
-            }
-
-            // Reset button press state
-            LaunchedEffect(isButtonPressed) {
-                if (isButtonPressed) {
-                    kotlinx.coroutines.delay(150)
-                    isButtonPressed = false
-                }
-            }
 
             Spacer(modifier = Modifier.weight(1f))
             
