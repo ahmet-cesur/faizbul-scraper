@@ -28,7 +28,18 @@ module.exports = {
                         }
                         tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                     }
-                    if (tableRows.length > 0) {
+                    
+                    // VALIDATION: Check if this is the Internet rate table.
+                    // Branch rates are low (~5%), Internet rates are high (> 25%).
+                    // We check if at least one rate in the table is > 20.0
+                    var hasHighRates = false;
+                    for(var tr=0; tr<tableRows.length; tr++) {
+                        for(var rr=0; rr<tableRows[tr].rates.length; rr++) {
+                            if(tableRows[tr].rates[rr] > 20.0) { hasHighRates = true; break; }
+                        }
+                    }
+
+                    if (tableRows.length > 0 && hasHighRates) {
                         Android.sendRateWithTable(tableRows[0].rates[0], 'İnternet Vadeli TL', 'Halkbank', JSON.stringify({headers: headers, rows: tableRows}));
                         return true;
                     }
@@ -51,9 +62,7 @@ module.exports = {
                         attempts = 0; // Reset attempts to give time for update
                     }
                 } else if (step === 1) {
-                    // Wait one cycle for table update
-                    step = 2;
-                } else {
+                    // Wait cycles for table update
                     if (extractHalkbankTable()) clearInterval(interval);
                 }
                 if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
