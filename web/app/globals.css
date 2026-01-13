@@ -285,6 +285,157 @@ tr:last-child td {
   margin-top: 0.25rem;
 }
 
+/* Result Card Styles */
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.result-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.result-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px -5px rgb(0 0 0 / 0.1);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.bank-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bank-logo-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.bank-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.campaign-tag {
+  font-size: 0.75rem;
+  color: var(--secondary);
+  font-weight: 500;
+}
+
+.rate-area {
+  text-align: right;
+}
+
+.rate-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.rate-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.card-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--accent);
+  border-radius: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--card);
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  overflow: auto;
+  position: relative;
+}
+
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--secondary);
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .card-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .calculator-grid {
     grid-template-columns: 1fr;
