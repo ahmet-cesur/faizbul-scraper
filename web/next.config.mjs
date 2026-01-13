@@ -9,9 +9,7 @@ const nextConfig = {
             },
         ],
     },
-    experimental: {
-        serverComponentsExternalPackages: ['google-spreadsheet', 'google-auth-library'],
-    },
+    serverExternalPackages: ['google-spreadsheet', 'google-auth-library'],
 };
 
 export default nextConfig;
