@@ -3,6 +3,8 @@ package com.acesur.faizbul
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 
-import com.acesur.faizbul.ui.screens.DevTriggerPage
+
 import com.acesur.faizbul.ui.screens.LandingPage
 
 import com.acesur.faizbul.ui.screens.ResultPage
@@ -27,28 +29,34 @@ import com.google.android.gms.ads.MobileAds
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         
 
-        // Initialize AdMob
-        MobileAds.initialize(this) {}
-        
         val adManager = com.acesur.faizbul.util.AdManager(this)
-        adManager.loadInterstitial()
+
+        val consentManager = com.acesur.faizbul.util.ConsentManager(this)
+        consentManager.gatherConsent(this) { error ->
+            if (error != null) {
+                // Log error
+                android.util.Log.w("MainActivity", "Consent gathering failed: ${error.errorCode} ${error.message}")
+            }
+
+            if (consentManager.canRequestAds()) {
+                MobileAds.initialize(this) {}
+                adManager.loadInterstitial()
+            }
+        }
 
 
         setContent {
-            val themeMode by com.acesur.faizbul.ui.theme.ThemeManager.themeMode.collectAsState()
-            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-            
-            val useDarkTheme = when(themeMode) {
-                com.acesur.faizbul.ui.theme.AppThemeMode.SYSTEM -> isSystemDark
-                com.acesur.faizbul.ui.theme.AppThemeMode.LIGHT -> false
-                com.acesur.faizbul.ui.theme.AppThemeMode.DARK -> true
-            }
 
-            FaizBulTheme(darkTheme = useDarkTheme) {
+
+            FaizBulTheme(darkTheme = true) {
                 var showSplash by remember { mutableStateOf(true) }
                 
                 Surface(
@@ -88,9 +96,7 @@ class MainActivity : ComponentActivity() {
                                     SettingsPage(navController)
                                 }
 
-                                composable("dev_trigger") {
-                                    DevTriggerPage(navController)
-                                }
+
 
                             }
                         }

@@ -42,3 +42,7 @@
 
 # App specific
 -keep class com.acesur.faizbul.ui.viewmodels.** { *; }
+-keep class com.acesur.faizbul.util.** { *; }
+
+# User Messaging Platform (UMP)
+-keep class com.google.android.ump.** { *; }

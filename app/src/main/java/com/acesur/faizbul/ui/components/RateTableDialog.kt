@@ -83,24 +83,28 @@ fun RateTableDialog(
     
     // Find matching column and row indices using "highest min <= input" logic
     var bestMinAmount = -1.0
+    var absoluteMaxAmount = -1.0
     var bestColIdx = -1
     tableData?.first?.forEachIndexed { index, header ->
+        if (header.maxAmount != null && header.maxAmount > absoluteMaxAmount) absoluteMaxAmount = header.maxAmount
         if (header.minAmount != null && header.minAmount <= amount && header.minAmount > bestMinAmount) {
             bestMinAmount = header.minAmount
             bestColIdx = index
         }
     }
-    val matchingColIndex = bestColIdx
+    val matchingColIndex = if (absoluteMaxAmount > 0 && amount > absoluteMaxAmount) -1 else bestColIdx
     
     var bestMinDays = -1
+    var absoluteMaxDays = -1
     var bestRowIdx = -1
     tableData?.second?.forEachIndexed { index, row ->
+        if (row.maxDays != null && row.maxDays > absoluteMaxDays) absoluteMaxDays = row.maxDays
         if (row.minDays != null && row.minDays <= durationDays && row.minDays > bestMinDays) {
             bestMinDays = row.minDays
             bestRowIdx = index
         }
     }
-    val matchingRowIndex = bestRowIdx
+    val matchingRowIndex = if (absoluteMaxDays > 0 && durationDays > absoluteMaxDays) -1 else bestRowIdx
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -139,6 +143,27 @@ fun RateTableDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 
                 if (tableData != null) {
+                    // Out of bounds warning in dialog
+                    if (matchingColIndex == -1 || matchingRowIndex == -1) {
+                        val reason = when {
+                            matchingColIndex == -1 && matchingRowIndex == -1 -> "Tutar ve Süre dışı"
+                            matchingColIndex == -1 -> "Tutar çok düşük/yüksek"
+                            else -> "Süre çok kısa/uzun"
+                        }
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        ) {
+                            Text(
+                                text = "Girdiğiniz kriterler bu bankanın faiz tablosu kapsamı dışındadır ($reason).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+
                     val (headers, rows) = tableData
                     val hScrollState = rememberScrollState()
                     val vScrollState = rememberScrollState()

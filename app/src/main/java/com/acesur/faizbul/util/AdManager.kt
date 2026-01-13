@@ -22,8 +22,8 @@ class AdManager(private val context: Context) {
 
     fun loadInterstitial() {
         val adRequest = AdRequest.Builder().build()
-        // Test Ad Unit ID for Interstitial
-        InterstitialAd.load(context, "ca-app-pub-3940256099942544/1033173712", adRequest, object : InterstitialAdLoadCallback() {
+        // Ad Unit ID for Interstitial
+        InterstitialAd.load(context, "ca-app-pub-6223654168327818/6599026267", adRequest, object : InterstitialAdLoadCallback() {
             override fun onAdFailedToLoad(adError: LoadAdError) {
                 interstitialAd = null
             }

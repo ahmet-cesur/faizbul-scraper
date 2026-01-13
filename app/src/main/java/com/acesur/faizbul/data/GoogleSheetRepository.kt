@@ -89,34 +89,7 @@ object GoogleSheetRepository {
      * Trigger GitHub Actions Scraper via REST API.
      * Note: Requires GITHUB_TOKEN with workflow permissions.
      */
-    suspend fun triggerScraper(token: String): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val owner = "ahmet-cesur"
-            val repo = "faizbul-scraper"
-            val workflowId = "scraper.yml"
-            val url = URL("https://api.github.com/repos/$owner/$repo/actions/workflows/$workflowId/dispatches")
-            
-            val connection = url.openConnection() as java.net.HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Authorization", "token $token")
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
-            connection.doOutput = true
-            
-            // Body required for workflow_dispatch: "ref" is mandatory
-            val jsonBody = "{\"ref\":\"main\"}"
-            connection.outputStream.write(jsonBody.toByteArray())
-            
-            val responseCode = connection.responseCode
-            if (responseCode in 200..299) {
-                Result.success(Unit)
-            } else {
-                val errorMsg = connection.errorStream?.bufferedReader()?.readText() ?: "Status: $responseCode"
-                Result.failure(Exception(errorMsg))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+
     
     suspend fun getBestOffers(): List<BestOffer> = withContext(Dispatchers.IO) {
         val allRates = fetchRates(forceRefresh = false)

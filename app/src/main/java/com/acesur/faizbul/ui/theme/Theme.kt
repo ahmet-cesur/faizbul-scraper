@@ -41,51 +41,24 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = Color(0xFF475569)
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Emerald600,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFD1FAE5),
-    onPrimaryContainer = Emerald700,
-    
-    secondary = Amber500,
-    onSecondary = Color.Black,
-    secondaryContainer = Color(0xFFFEF3C7),
-    onSecondaryContainer = Amber600,
-    
-    tertiary = TealGradient,
-    onTertiary = Color.White,
-    
-    background = OffWhite,
-    onBackground = NavyDark,
-    
-    surface = Color.White,
-    onSurface = NavyDark,
-    surfaceVariant = LightGray,
-    onSurfaceVariant = SlateGray,
-    
-    error = ErrorRed,
-    onError = Color.White,
-    
-    outline = Color(0xFF94A3B8),
-    outlineVariant = MediumGray
-)
+
 
 @Composable
 fun FaizBulTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true, // Force Dark Mode
     // Disable dynamic color for consistent branding
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = DarkColorScheme
     
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
             }
         }
     }

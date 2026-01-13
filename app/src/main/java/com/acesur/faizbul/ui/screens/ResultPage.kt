@@ -57,11 +57,12 @@ fun ResultPage(
     viewModel: ResultViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val inputAmount = amount.toDoubleOrNull() ?: 0.0
     val durationDays = duration.toIntOrNull() ?: 30
 
     LaunchedEffect(Unit) {
-        viewModel.initScrapers(context, inputAmount, durationDays)
+        viewModel.initScrapers(inputAmount, durationDays)
     }
 
     // Local scraping component removed - only reading Google Sheets now
@@ -99,7 +100,19 @@ fun ResultPage(
                         )
                     } else {
                         IconButton(
-                            onClick = { viewModel.refreshFromSheet(context, inputAmount, durationDays) },
+                            onClick = { com.acesur.faizbul.util.ShareUtils.captureContentAndShare(context, view) },
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Paylaş", tint = MaterialTheme.colorScheme.primary)
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.refreshFromSheet(inputAmount, durationDays) },
                             modifier = Modifier
                                 .padding(end = 8.dp)
                                 .background(
@@ -391,26 +404,52 @@ fun ResultCard(
 
     val hasHistory = state.lastSuccessfulRate != null && state.lastSuccessfulTimestamp != null
     
-    // Check if days are out of table bounds
-    val daysOutOfBounds = remember(state.cachedTableJson, durationDays) {
+    // Check if input is out of table bounds (amount or days)
+    val outOfBoundsMessage = remember(state.cachedTableJson, amount, durationDays) {
         if (state.cachedTableJson == null) return@remember null
         try {
             val json = org.json.JSONObject(state.cachedTableJson)
-            val rows = json.getJSONArray("rows")
+            
+            // Check amount bounds from headers
+            val headers = json.optJSONArray("headers")
+            var minAmountInTable = Double.MAX_VALUE
+            var maxAmountInTable = Double.MIN_VALUE
+            
+            if (headers != null) {
+                for (i in 0 until headers.length()) {
+                    val header = headers.optJSONObject(i)
+                    if (header != null) {
+                        val minAmt = header.optDouble("minAmount", Double.MAX_VALUE)
+                        val maxAmt = header.optDouble("maxAmount", Double.MIN_VALUE)
+                        if (minAmt < minAmountInTable && minAmt != Double.MAX_VALUE) minAmountInTable = minAmt
+                        if (maxAmt > maxAmountInTable && maxAmt != Double.MIN_VALUE) maxAmountInTable = maxAmt
+                    }
+                }
+            }
+            
+            // Check days bounds from rows
+            val rows = json.optJSONArray("rows")
             var minDaysInTable = Int.MAX_VALUE
             var maxDaysInTable = Int.MIN_VALUE
             
-            for (i in 0 until rows.length()) {
-                val row = rows.getJSONObject(i)
-                val minDays = row.optInt("minDays", Int.MAX_VALUE)
-                val maxDays = row.optInt("maxDays", Int.MIN_VALUE)
-                if (minDays < minDaysInTable) minDaysInTable = minDays
-                if (maxDays > maxDaysInTable) maxDaysInTable = maxDays
+            if (rows != null) {
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i)
+                    if (row != null) {
+                        val minD = row.optInt("minDays", Int.MAX_VALUE)
+                        val maxD = row.optInt("maxDays", Int.MIN_VALUE)
+                        if (minD < minDaysInTable && minD != Int.MAX_VALUE) minDaysInTable = minD
+                        if (maxD > maxDaysInTable && maxD != Int.MIN_VALUE) maxDaysInTable = maxD
+                    }
+                }
             }
             
             when {
-                durationDays < minDaysInTable -> "Vade çok kısa (min: $minDaysInTable gün)"
-                durationDays > maxDaysInTable && maxDaysInTable < 99999 -> "Vade çok uzun (max: $maxDaysInTable gün)"
+                // If we found any valid bounds, check against them
+                minAmountInTable != Double.MAX_VALUE && amount < minAmountInTable -> "Tutar çok düşük"
+                maxAmountInTable != Double.MIN_VALUE && amount > maxAmountInTable -> "Tutar çok yüksek"
+                minDaysInTable != Int.MAX_VALUE && durationDays < minDaysInTable -> "Süre çok kısa"
+                maxDaysInTable != Int.MIN_VALUE && durationDays > maxDaysInTable -> "Süre çok uzun"
                 else -> null
             }
         } catch (e: Exception) {
@@ -457,7 +496,7 @@ fun ResultCard(
                 ambientColor = if (isBestDeal) Amber500.copy(alpha = 0.3f) else brandColor.copy(alpha = 0.15f),
                 spotColor = if (isBestDeal) Amber500.copy(alpha = 0.3f) else brandColor.copy(alpha = 0.15f)
             )
-            .then(if (state.rate != null) Modifier.clickable { onToggle() } else Modifier),
+            .clickable { onToggle() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -531,8 +570,8 @@ fun ResultCard(
                 }
             }
             
-            // Days out of bounds warning
-            if (daysOutOfBounds != null && state.cachedTableJson != null) {
+            // Out of bounds warning
+            if (outOfBoundsMessage != null && state.cachedTableJson != null) {
                 Surface(
                     color = Color(0xFFFF5722), // Orange
                     shape = MaterialTheme.shapes.extraSmall,
@@ -542,7 +581,7 @@ fun ResultCard(
                         Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.White)
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = daysOutOfBounds,
+                            text = outOfBoundsMessage,
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                             fontWeight = FontWeight.Bold
@@ -602,38 +641,48 @@ fun ResultCard(
                 when (state.status) {
                     ScraperStatus.WORKING -> {
                         Column(horizontalAlignment = Alignment.End) {
-                            if (state.rate != null) {
-                                // Show cached rate while updating
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val formattedRate = formatRate(state.rate.rate)
-                                    Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
-                                    Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
+                            if (outOfBoundsMessage != null) {
+                                Text(outOfBoundsMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                            } else {
+                                if (state.rate != null) {
+                                    // Show cached rate while updating
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        val formattedRate = formatRate(state.rate.rate)
+                                        Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                                        Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
+                                    }
                                 }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = cardContentColor.copy(alpha = shimmerAlpha)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Güncelleniyor...",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = cardContentColor.copy(alpha = shimmerAlpha)
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = cardContentColor.copy(alpha = shimmerAlpha)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Güncelleniyor...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = cardContentColor.copy(alpha = shimmerAlpha)
+                                    )
+                                }
                             }
                         }
                     }
                     ScraperStatus.SUCCESS -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val formattedRate = formatRate(state.rate?.rate ?: 0.0)
-                            Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
-                            Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
+                        if (outOfBoundsMessage != null && state.rate == null) {
+                            Text(outOfBoundsMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                val formattedRate = formatRate(state.rate?.rate ?: 0.0)
+                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                                Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
+                            }
                         }
                     }
                     ScraperStatus.FAILED -> {
-                        if (state.rate != null) {
+                        if (outOfBoundsMessage != null) {
+                            Text(outOfBoundsMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        } else if (state.rate != null) {
                             // We have a calculated cached rate - treat mostly like success but with valid brand colors
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 val formattedRate = formatRate(state.rate.rate)
@@ -650,15 +699,19 @@ fun ResultCard(
                     }
                     ScraperStatus.WAITING -> {
                         Column(horizontalAlignment = Alignment.End) {
-                            if (hasHistory) {
-                                val formattedRate = formatRate(state.lastSuccessfulRate ?: 0.0)
-                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = if (isShowingCachedData && !isDarkTheme) Color.Black.copy(0.4f) else cardOutlineColor, fontWeight = FontWeight.Bold)
+                            if (outOfBoundsMessage != null) {
+                                Text(outOfBoundsMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                            } else {
+                                if (hasHistory) {
+                                    val formattedRate = formatRate(state.lastSuccessfulRate ?: 0.0)
+                                    Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = if (isShowingCachedData && !isDarkTheme) Color.Black.copy(0.4f) else cardOutlineColor, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    text = "Sırada...",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = cardSecondaryColor
+                                )
                             }
-                            Text(
-                                text = "Sırada...",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = cardSecondaryColor
-                            )
                         }
                     }
                 }
@@ -688,7 +741,7 @@ fun ResultCard(
                 Text("Geçmiş oran yükleniyor... ($dateStr)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.padding(top = 4.dp))
             }
 
-            AnimatedVisibility(visible = isExpanded && state.rate != null) {
+            AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(top = 16.dp)) {
                     HorizontalDivider(color = brandColor.copy(alpha = 0.1f))
                     Spacer(modifier = Modifier.height(8.dp))
@@ -699,12 +752,14 @@ fun ResultCard(
                     // Use brand color for display to match success look
                     val displayColor = brandColor
                     
-                    DetailRow(stringResource(R.string.label_gross_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", gross), color = cardContentColor)
-                    DetailRow(stringResource(R.string.label_tax_rate), formatRate(taxRate * 100), color = cardContentColor)
-                    DetailRow(stringResource(R.string.label_net_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", net), color = cardContentColor)
-                    DetailRow(stringResource(R.string.label_total), String.format(java.util.Locale.getDefault(), "%,.2f TL", amount + net), color = cardContentColor, isBold = true)
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
+                    if (state.rate != null) {
+                        DetailRow(stringResource(R.string.label_gross_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", gross), color = cardContentColor)
+                        DetailRow(stringResource(R.string.label_tax_rate), formatRate(taxRate * 100), color = cardContentColor)
+                        DetailRow(stringResource(R.string.label_net_earnings), String.format(java.util.Locale.getDefault(), "%,.2f TL", net), color = cardContentColor)
+                        DetailRow(stringResource(R.string.label_total), String.format(java.util.Locale.getDefault(), "%,.2f TL", amount + net), color = cardContentColor, isBold = true)
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                     
                     // View Table button (if table data exists)

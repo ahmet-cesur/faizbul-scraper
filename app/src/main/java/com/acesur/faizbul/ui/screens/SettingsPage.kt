@@ -10,10 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -131,87 +127,7 @@ fun SettingsPage(navController: NavController) {
                 onClick = { showResetDialog = true }
             )
 
-            SettingsCard(
-                icon = Icons.AutoMirrored.Filled.List,
-                iconColor = Emerald500,
-                title = "Banka Seçimi",
-                subtitle = "Hangi bankaların sonuçlarda çıkacağını seçin",
-                onClick = { navController.navigate("bankSelection") }
-            )
-            
-            // Theme Selection
-            val currentThemeMode by ThemeManager.themeMode.collectAsState()
-            var showThemeSheet by remember { mutableStateOf(false) }
-            
-            SettingsCard(
-                icon = if (currentThemeMode == AppThemeMode.DARK) Icons.Filled.Info else Icons.Filled.CheckCircle,
-                iconColor = Amber500,
-                title = "Görünüm Modu",
-                subtitle = when(currentThemeMode) {
-                    AppThemeMode.SYSTEM -> "Sistem Varsayılanı"
-                    AppThemeMode.LIGHT -> "Açık Mod"
-                    AppThemeMode.DARK -> "Koyu Mod"
-                },
-                onClick = { showThemeSheet = true }
-            )
-            
-            if (showThemeSheet) {
-                 ModalBottomSheet(
-                    onDismissRequest = { showThemeSheet = false },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    dragHandle = { BottomSheetDefaults.DragHandle() }
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .padding(bottom = 32.dp)
-                    ) {
-                        Text(
-                            "Görünüm Ayarları",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
-                        )
-                        
-                        val modes = listOf<Triple<AppThemeMode, String, ImageVector>>(
-                            Triple(AppThemeMode.SYSTEM, "Sistem Varsayılanı", Icons.Filled.Settings),
-                            Triple(AppThemeMode.LIGHT, "Açık Mod", Icons.Filled.CheckCircle),
-                            Triple(AppThemeMode.DARK, "Koyu Mod", Icons.Filled.Info)
-                        )
-                        
-                        modes.forEach { triple ->
-                            val mode = triple.first
-                            val label = triple.second
-                            val icon = triple.third
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { 
-                                        ThemeManager.setThemeMode(mode)
-                                        showThemeSheet = false 
-                                    }
-                                    .padding(vertical = 12.dp, horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(
-                                    label, 
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (currentThemeMode == mode) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+
 
             Spacer(modifier = Modifier.weight(1f))
             
@@ -257,7 +173,8 @@ fun SettingsPage(navController: NavController) {
                             devTaps++
                             if (devTaps >= 10) {
                                 devTaps = 0
-                                navController.navigate("dev_trigger")
+                                com.acesur.faizbul.util.AdPrefs.disableAdsTemporarily()
+                                android.widget.Toast.makeText(context, "Geliştirici modu: Reklamlar bu oturum için gizlendi.", android.widget.Toast.LENGTH_LONG).show()
                             }
                         }
                     ) {

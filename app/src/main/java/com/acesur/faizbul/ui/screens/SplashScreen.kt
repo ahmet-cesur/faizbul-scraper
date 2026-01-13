@@ -93,9 +93,9 @@ fun SplashScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        NavyDark,
-                        NavyMedium,
-                        NavyDark
+                        Emerald700,
+                        Emerald600,
+                        Emerald500
                     )
                 )
             ),
@@ -109,7 +109,7 @@ fun SplashScreen(
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Emerald500.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.15f),
                             Color.Transparent
                         )
                     )
@@ -123,7 +123,7 @@ fun SplashScreen(
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            TealGradient.copy(alpha = 0.1f),
+                            Color.White.copy(alpha = 0.1f),
                             Color.Transparent
                         )
                     )
@@ -144,11 +144,11 @@ fun SplashScreen(
                 // Glow effect
                 Box(
                     modifier = Modifier
-                        .size(200.dp)
+                        .size(240.dp)
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    Emerald500.copy(alpha = glowAlpha),
+                                    Color.White.copy(alpha = glowAlpha),
                                     Color.Transparent
                                 )
                             ),
@@ -159,19 +159,18 @@ fun SplashScreen(
                 // Logo container
                 Box(
                     modifier = Modifier
-                        .size(140.dp)
+                        .size(180.dp)
                         .shadow(
                             elevation = 24.dp,
                             shape = CircleShape,
-                            ambientColor = Emerald500.copy(alpha = 0.4f),
-                            spotColor = Emerald500.copy(alpha = 0.4f)
+                            ambientColor = Color.Black.copy(alpha = 0.4f),
+                            spotColor = Color.Black.copy(alpha = 0.4f)
                         )
                         .background(
                             brush = Brush.linearGradient(
                                 colors = listOf(
-                                    Emerald600,
-                                    Emerald500,
-                                    TealGradient
+                                    Color.White,
+                                    Color.White
                                 )
                             ),
                             shape = CircleShape
@@ -182,7 +181,7 @@ fun SplashScreen(
                         painter = painterResource(id = R.drawable.app_logo),
                         contentDescription = null,
                         modifier = Modifier
-                            .size(100.dp)
+                            .fillMaxSize()
                             .clip(CircleShape)
                     )
                 }
@@ -206,11 +205,10 @@ fun SplashScreen(
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Subtitle
             Text(
                 text = "En İyi Faiz Oranını Bul",
                 style = MaterialTheme.typography.bodyLarge,
-                color = SlateGray,
+                color = Color.White.copy(alpha = 0.9f),
                 modifier = Modifier.alpha(subtitleAlpha)
             )
             
@@ -233,7 +231,7 @@ fun SplashScreen(
         Text(
             text = "A.C. Bros 2025",
             style = MaterialTheme.typography.labelSmall,
-            color = SlateGray.copy(alpha = 0.5f),
+            color = Color.White.copy(alpha = 0.6f),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 32.dp)

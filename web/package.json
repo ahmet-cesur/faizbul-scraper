@@ -1,0 +1,19 @@
+{
+    "name": "kiyas-web",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint"
+    },
+    "dependencies": {
+        "next": "14.2.3",
+        "react": "^18",
+        "react-dom": "^18",
+        "lucide-react": "^0.378.0",
+        "google-spreadsheet": "^4.1.4",
+        "google-auth-library": "^9.10.0"
+    }
+}

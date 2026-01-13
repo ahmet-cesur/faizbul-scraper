@@ -17,9 +17,10 @@ class FaizBulApp : Application() {
             AppDatabase::class.java, "faizbul-db"
         ).fallbackToDestructiveMigration().build()
         
-        com.acesur.faizbul.ui.theme.ThemeManager.init(this)
+
         com.acesur.faizbul.util.AdPrefs.init(this)
-        com.acesur.faizbul.util.DevPrefs.init(this)
+        com.acesur.faizbul.util.UserPrefs.init(this)
+
     }
 }
 

@@ -28,14 +28,14 @@ data class BestOffer(
 
 enum class ScraperStatus { WAITING, WORKING, SUCCESS, FAILED }
 
-enum class ScraperError { TIMEOUT, BLOCKED, PARSING_ERROR, NETWORK_ERROR, NO_MATCH }
+
 
 data class ScraperResultState(
     val spec: ScraperSpec,
     val status: ScraperStatus = ScraperStatus.WAITING,
     val rate: InterestRate? = null,
     val errorMessage: String? = null,
-    val errorCode: ScraperError? = null,
+
     val lastSuccessfulRate: Double? = null,
     val lastSuccessfulTimestamp: Long? = null,
     val cachedTableJson: String? = null,  // Full table JSON for display

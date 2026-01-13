@@ -15,10 +15,10 @@ class ResultViewModel : ViewModel() {
     val resultsMap = mutableStateMapOf<String, ScraperResultState>()
     
     var isInitialized = false
-    var isAppInBackground = false
+
     var isRefreshing = androidx.compose.runtime.mutableStateOf(false)
 
-    fun initScrapers(context: android.content.Context, amount: Double, days: Int) {
+    fun initScrapers(amount: Double, days: Int) {
         if (isInitialized) return
         isInitialized = true
         
@@ -36,19 +36,19 @@ class ResultViewModel : ViewModel() {
         }
         
         viewModelScope.launch {
-            loadAllData(context, amount, days)
+            loadAllData(amount, days)
         }
     }
 
-    fun refreshFromSheet(context: android.content.Context, amount: Double, days: Int) {
+    fun refreshFromSheet(amount: Double, days: Int) {
         viewModelScope.launch {
             isRefreshing.value = true
-            loadAllData(context, amount, days)
+            loadAllData(amount, days)
             isRefreshing.value = false
         }
     }
 
-    private suspend fun loadAllData(context: android.content.Context, amount: Double, days: Int) {
+    private suspend fun loadAllData(amount: Double, days: Int) {
         val allScrapers = ScraperSpec.allScrapers
 
         // Calculate start of today for stale check
@@ -68,20 +68,26 @@ class ResultViewModel : ViewModel() {
         android.util.Log.d("FaizBul", "Fetched ${sheetRates.size} rates from Google Sheet")
 
         allScrapers.forEach { spec ->
-            // 1. Check Google Sheet Data with Bracket Matching
-            val sheetRate = sheetRates.filter { 
+            // 1. Check Google Sheet Data
+            val bankRates = sheetRates.filter { 
                 it.bankName == spec.bankName && 
                 (it.description == spec.description || spec.description.contains(it.description) || it.description.contains(spec.description)) 
-            }.find { 
+            }
+            
+            // Find one that matches bounds
+            val sheetRate = bankRates.find { 
                 amount >= it.minAmount && amount <= it.maxAmount &&
                 days >= it.minDays && days <= it.maxDays
             }
             
+            // Collect any available table JSON for this scraper from the sheet
+            val anyTableJson = sheetRate?.tableJson ?: bankRates.firstOrNull { it.tableJson != null }?.tableJson
+            
             if (sheetRate != null) {
                  // Prioritize extracting the precise rate from the table if available
                  var finalRateValue = sheetRate.rate
-                 if (sheetRate.tableJson != null) {
-                     val extracted = extractRateFromTable(sheetRate.tableJson, amount, days)
+                 if (anyTableJson != null) {
+                     val extracted = extractRateFromTable(anyTableJson, amount, days)
                      if (extracted != null && extracted > 0) {
                          finalRateValue = extracted
                      }
@@ -105,10 +111,25 @@ class ResultViewModel : ViewModel() {
                         rate = finalRate,
                         isUsingCachedRate = isSheetRateStale,
                         tableTimestamp = sheetRate.timestamp,
-                        cachedTableJson = sheetRate.tableJson
+                        cachedTableJson = anyTableJson
                     )
                     return@forEach
                  }
+            } else if (anyTableJson != null) {
+                // Out of bounds from sheet, but we found a table. 
+                // We should still populate it so ResultPage can show "Out of Bounds" instead of "Waiting"
+                val extracted = extractRateFromTable(anyTableJson, amount, days)
+                if (extracted == null || extracted <= 0) {
+                    // Confirmed out of bounds
+                    resultsMap[spec.name] = ScraperResultState(
+                        spec = spec,
+                        status = ScraperStatus.SUCCESS, // Mark as success as in "we processed it", but rate is null
+                        rate = null,
+                        cachedTableJson = anyTableJson,
+                        tableTimestamp = bankRates.firstOrNull { it.tableJson != null }?.timestamp
+                    )
+                    return@forEach
+                }
             }
 
             // 2. Fallback to Local Cache
@@ -173,32 +194,57 @@ class ResultViewModel : ViewModel() {
             
             var bestMinAmount = -1.0
             var matchingColIndex = -1
+            var absoluteMaxAmount = -1.0
+
             for (i in 0 until headersArray.length()) {
-                val headerObj = headersArray.getJSONObject(i)
-                val minAmt = if (headerObj.has("minAmount") && !headerObj.isNull("minAmount")) headerObj.getDouble("minAmount") else null
-                if (minAmt != null && minAmt <= amount && minAmt > bestMinAmount) {
-                    bestMinAmount = minAmt
-                    matchingColIndex = i
+                val headerObj = headersArray.optJSONObject(i)
+                if (headerObj != null) {
+                    val minAmt = if (headerObj.has("minAmount") && !headerObj.isNull("minAmount")) headerObj.getDouble("minAmount") else null
+                    val maxAmt = if (headerObj.has("maxAmount") && !headerObj.isNull("maxAmount")) headerObj.getDouble("maxAmount") else null
+                    
+                    if (maxAmt != null && maxAmt > absoluteMaxAmount) absoluteMaxAmount = maxAmt
+                    
+                    if (minAmt != null && minAmt <= amount && minAmt > bestMinAmount) {
+                        bestMinAmount = minAmt
+                        matchingColIndex = i
+                    }
                 }
             }
             
+            if (matchingColIndex == -1 && headersArray.length() > 0) {
+                if (headersArray.length() == 1) matchingColIndex = 0
+            }
+            
+            // Strictly check max amount if we found a max in the table
+            if (matchingColIndex != -1 && absoluteMaxAmount > 0 && amount > absoluteMaxAmount) return null
             if (matchingColIndex == -1) return null
             
             val rowsArray = json.getJSONArray("rows")
             var bestMinDays = -1
             var matchingRowIndex = -1
+            var absoluteMaxDays = -1
+
             for (i in 0 until rowsArray.length()) {
-                val rowObj = rowsArray.getJSONObject(i)
-                val minDays = if (rowObj.has("minDays") && !rowObj.isNull("minDays")) rowObj.getInt("minDays") else null
-                if (minDays != null && minDays <= days && minDays > bestMinDays) {
-                    bestMinDays = minDays
-                    matchingRowIndex = i
+                val rowObj = rowsArray.optJSONObject(i)
+                if (rowObj != null) {
+                    val minDays = if (rowObj.has("minDays") && !rowObj.isNull("minDays")) rowObj.getInt("minDays") else null
+                    val maxDays = if (rowObj.has("maxDays") && !rowObj.isNull("maxDays")) rowObj.getInt("maxDays") else null
+                    
+                    if (maxDays != null && maxDays > absoluteMaxDays) absoluteMaxDays = maxDays
+
+                    if (minDays != null && minDays <= days && minDays > bestMinDays) {
+                        bestMinDays = minDays
+                        matchingRowIndex = i
+                    }
                 }
             }
             
+            // Strictly check max days
+            if (matchingRowIndex != -1 && absoluteMaxDays > 0 && days > absoluteMaxDays) return null
             if (matchingRowIndex == -1) return null
             
-            val ratesArray = rowsArray.getJSONObject(matchingRowIndex).getJSONArray("rates")
+            val rowObj = rowsArray.getJSONObject(matchingRowIndex)
+            val ratesArray = rowObj.getJSONArray("rates")
             if (matchingColIndex < ratesArray.length() && !ratesArray.isNull(matchingColIndex)) {
                 return ratesArray.getDouble(matchingColIndex)
             }

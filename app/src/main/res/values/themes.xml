@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.FaizBul" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/app_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.FaizBul</item>
+    </style>
+
+    <style name="Theme.FaizBul" parent="android:Theme.Material.NoActionBar">
+        <!-- Transparent system bars to satisfy edge-to-edge requirements -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

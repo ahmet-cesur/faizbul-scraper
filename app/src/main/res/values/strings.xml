@@ -1,12 +1,12 @@
 <resources>
     <string name="app_name">FaizBul</string>
     <string name="landing_title">En İyi Faiz Oranlarını Bul</string>
-    <string name="landing_subtitle">Bankaları karşılaştır, kazancını maksimize et</string>
+    <string name="landing_subtitle">Faiz Bul</string>
     <string name="enter_amount">Tutar Giriniz</string>
     <string name="enter_duration">Vade (Gün)</string>
     <string name="find_rates">Oranları Bul</string>
     <string name="settings">Ayarlar</string>
-    <string name="results_title">Sizin İçin En İyi Oranlar</string>
+    <string name="results_title">Faiz Bul</string>
     <string name="bank_name">Banka Adı</string>
     <string name="interest_rate">Faiz Oranı</string>
     <string name="earnings">Kazanç</string>
@@ -43,5 +43,6 @@
     <string name="label_session_best">BU OTURUMDAKİ EN YÜKSEK ORAN</string>
     <string name="label_amount_bracket">Tutar Aralığı:</string>
     <string name="label_duration_bracket">Vade Aralığı:</string>
-    <string name="bank_data_warning">Bu uygulama, kullanıcı kolaylığı sağlamak amacıyla bankaların internet sitelerindeki halka açık verileri derlemektedir. Banka web sitelerindeki yoğunluk veya yapısal değişiklikler nedeniyle bazı veriler anlık olarak görüntülenemeyebilir. Faiz oranlarını her zaman bankanın resmi sitesinden kontrol etmeniz önerilir.</string>
+    <string name="faiz_not_found">Faiz bulunamadı</string>
+    <string name="bank_data_warning">Bu uygulama, bankaların halka açık web sitelerinden derlenen verileri bir araya getirerek, her siteyi tek tek kontrol etme ihtiyacını ortadan kaldırmak ve kıyaslama sürenizi kısaltmak amacıyla geliştirilmiştir. Banka web sitelerindeki yoğunluk veya yapısal değişiklikler nedeniyle bazı veriler anlık olarak görüntülenemeyebilir; bu nedenle faiz oranlarını her zaman bankanın resmi sitesinden kontrol etmeniz önerilir. Ayrıca, banka şubeleriyle doğrudan görüşerek daha yüksek bir faiz oranı alma ihtimaliniz bulunmaktadır. Yatırım tavsiyesi değildir.</string>
 </resources>

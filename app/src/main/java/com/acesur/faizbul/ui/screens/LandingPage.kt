@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,6 +17,11 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDatePickerState
+import java.util.concurrent.TimeUnit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +35,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.res.painterResource
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -45,14 +55,21 @@ import com.acesur.faizbul.util.ThousandSeparatorTransformation
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LandingPage(navController: NavController, adManager: AdManager? = null, activity: Activity? = null) {
-    var amount by remember { mutableStateOf("5000000") }
-    var duration by remember { mutableStateOf("32") }
+    var amount by remember { mutableStateOf(com.acesur.faizbul.util.UserPrefs.getLastAmount().ifEmpty { "5000000" }) }
+    var duration by remember { mutableStateOf(com.acesur.faizbul.util.UserPrefs.getLastDuration().ifEmpty { "32" }) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
     var showWeekendWarning by remember { mutableStateOf(false) }
     var weekendWarningDate by remember { mutableStateOf("") }
     var weekendDayName by remember { mutableStateOf("") }
     var selectedDurationChip by remember { mutableStateOf<Int?>(null) }
+
+    // Date Picker State
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
     
     // Animation for the button
     var isButtonPressed by remember { mutableStateOf(false) }
@@ -92,8 +109,10 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
             
             val holidayName = com.acesur.faizbul.util.HolidayUtils.getHolidayName(calendar)
             weekendDayName = holidayName ?: (if (dayOfWeek == Calendar.SATURDAY) "Cumartesi" else "Pazar")
+            com.acesur.faizbul.util.UserPrefs.saveLastInput(amount, duration)
             showWeekendWarning = true
         } else {
+            com.acesur.faizbul.util.UserPrefs.saveLastInput(amount, duration)
             if (adManager != null && activity != null) {
                 adManager.showInterstitial(activity) {
                     navController.navigate("result/$amount/$duration")
@@ -190,47 +209,58 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 )
         )
 
+
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(24.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 12.dp) // Reduced horizontal padding slightly to give more room for content, added scroll
+                .padding(bottom = 50.dp), // Extra bottom padding for scroll
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            
-            // Top Row for Settings
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                IconButton(
-                    onClick = { navController.navigate("settings") },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            CircleShape
-                        )
-                ) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = stringResource(R.string.settings),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
+            AdBanner()
+            // Spacer for Settings button alignment visuals
+            Spacer(modifier = Modifier.height(48.dp))
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Logo with glow effect
+            val rotation = remember { Animatable(0f) }
+            val scope = rememberCoroutineScope()
+            
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(140.dp)
+                modifier = Modifier
+                    .size(100.dp)
+                    .graphicsLayer { rotationZ = rotation.value }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        scope.launch {
+                            rotation.snapTo(0f)
+                            rotation.animateTo(
+                                targetValue = 0f,
+                                animationSpec = keyframes {
+                                    durationMillis = 500
+                                    0f at 0 using LinearEasing
+                                    -15f at 50 using LinearEasing
+                                    15f at 150 using LinearEasing
+                                    -10f at 250 using LinearEasing
+                                    10f at 350 using LinearEasing
+                                    -5f at 450 using LinearEasing
+                                    0f at 500
+                                }
+                            )
+                        }
+                    }
             ) {
                 // Glow effect
                 Box(
                     modifier = Modifier
-                        .size(140.dp)
+                        .size(100.dp)
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
@@ -244,9 +274,9 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 // Logo container
                 Surface(
                     modifier = Modifier
-                        .size(100.dp)
+                        .size(70.dp)
                         .shadow(
-                            elevation = 20.dp,
+                            elevation = 16.dp,
                             shape = CircleShape,
                             ambientColor = Emerald500.copy(alpha = 0.3f),
                             spotColor = Emerald500.copy(alpha = 0.3f)
@@ -263,31 +293,24 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                             painter = painterResource(id = R.drawable.app_logo),
                             contentDescription = null,
                             modifier = Modifier
-                                .size(70.dp)
+                                .size(45.dp)
                                 .clip(CircleShape)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Title & Subtitle
-            Text(
-                text = stringResource(id = R.string.landing_title),
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
+
             
             Text(
                 text = stringResource(id = R.string.landing_subtitle),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 26.sp, // ~60% increase from standard 16sp bodyLarge
+                    fontWeight = FontWeight.Bold
+                ),
+                color = Emerald500,
                 textAlign = TextAlign.Center
             )
 
@@ -300,7 +323,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 bestOffer = offers.firstOrNull()
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 2. Inputs (Moved Up)
             // Amount Input
@@ -320,7 +343,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 onFocusChange = { if (it) amount = "" }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Duration Input
             PremiumTextField(
@@ -331,11 +354,13 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 },
                 label = stringResource(id = R.string.enter_duration),
                 leadingIcon = {
-                    Icon(
-                        Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = Emerald500
-                    )
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(
+                            Icons.Default.DateRange,
+                            contentDescription = "Tarih Seç",
+                            tint = Emerald500
+                        )
+                    }
                 },
                 suffix = {
                     Text(
@@ -347,7 +372,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 onFocusChange = { if (it) duration = "" }
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Quick Duration Chips
             Row(
@@ -373,50 +398,15 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
             val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
             val isDelayed = hour >= 16 || dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
             
-            if (isDelayed) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Valör Uyarısı",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "Hafta sonu veya saat 16:00 sonrası açılan hesaplarda paranız hemen bloke edilir, ancak faiz ilk iş günü işlemeye başlar.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 3. Main Action Button (Moved Up)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(50.dp)
                     .scale(buttonScale)
                     .shadow(
                         elevation = 12.dp,
@@ -472,36 +462,24 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
             }
 
             // 4. Hızlı Öneri Section (Moved Down header)
-            Spacer(modifier = Modifier.weight(1f))
+            
+            // Spacer(modifier = Modifier.weight(1f)) // Removed to anchor to button
+            Spacer(modifier = Modifier.height(16.dp))
             
             // Extra padding to ensure separation from the main button if screen is small
             Spacer(modifier = Modifier.height(24.dp))
 
-            // "Hızlı Öneri" Header Box (Non-clickable)
+            // "Hızlı Öneri" Header Text (Simple)
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp) // Slightly smaller height for a header
-                    .shadow(
-                        elevation = 4.dp, // Reduced elevation
-                        shape = RoundedCornerShape(16.dp),
-                        ambientColor = Emerald500.copy(alpha = 0.3f),
-                        spotColor = Emerald500.copy(alpha = 0.3f)
-                    )
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Emerald600, Emerald500)
-                        )
-                    ),
+                modifier = Modifier.fillMaxWidth().height(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.Star, // Changed icon to Star to represent "Recommendation/Suggestion"
+                        Icons.Default.Star,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.White
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -510,7 +488,7 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         ),
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -525,7 +503,190 @@ fun LandingPage(navController: NavController, adManager: AdManager? = null, acti
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            AdBanner()
+
+            
+            if (false && isDelayed) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Valör Uyarısı",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Hafta sonu veya saat 16:00 sonrası açılan hesaplarda paranız hemen bloke edilir, ancak faiz ilk iş günü işlemeye başlar.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            
+        }
+
+        // Floating Settings Button (Placed last to be on top)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(24.dp), 
+            contentAlignment = Alignment.TopEnd
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Share Button
+                IconButton(
+                    onClick = { com.acesur.faizbul.util.ShareUtils.captureContentAndShare(context, view) },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = "Paylaş",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Settings Button
+                IconButton(
+                    onClick = { navController.navigate("settings") },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.settings),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { selectedMillis ->
+                            // 1. Determine Start Date (Valör)
+                            val startDate = Calendar.getInstance()
+                            val originalStartDate = Calendar.getInstance() // For comparison
+                            
+                            // Check 16:00 rule
+                            val hour = startDate.get(Calendar.HOUR_OF_DAY)
+                            var shifted = false
+                            if (hour >= 16) {
+                                startDate.add(Calendar.DAY_OF_YEAR, 1)
+                                shifted = true
+                            }
+                            
+                            // Check Holiday/Weekend rule (keep moving forward until workday)
+                            while (com.acesur.faizbul.util.HolidayUtils.isHoliday(startDate)) {
+                                startDate.add(Calendar.DAY_OF_YEAR, 1)
+                                shifted = true
+                            }
+                            
+                            // Strip time from startDate for accurate day diff calculation against selectedMillis (which is effectively midnight)
+                            startDate.set(Calendar.HOUR_OF_DAY, 0)
+                            startDate.set(Calendar.MINUTE, 0)
+                            startDate.set(Calendar.SECOND, 0)
+                            startDate.set(Calendar.MILLISECOND, 0)
+                            
+                            // 2. Determine End Date
+                            val endDate = Calendar.getInstance().apply { timeInMillis = selectedMillis }
+                            // Strip time (should already be midnight from picker, but safer)
+                            endDate.set(Calendar.HOUR_OF_DAY, 0)
+                            endDate.set(Calendar.MINUTE, 0)
+                            endDate.set(Calendar.SECOND, 0)
+                            endDate.set(Calendar.MILLISECOND, 0)
+                            
+                            // 3. Calculate Duration
+                            val diffMillis = endDate.timeInMillis - startDate.timeInMillis
+                            val days = TimeUnit.MILLISECONDS.toDays(diffMillis)
+                            
+                            if (days > 0) {
+                                duration = days.toString()
+                                selectedDurationChip = days.toInt()
+                                
+                                // 4. Show Toast if shifted
+                                if (shifted) {
+                                    val dateFormat = SimpleDateFormat("dd MMMM", Locale("tr"))
+                                    val startStr = dateFormat.format(startDate.time)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Saat 16:00 sonrası veya tatil nedeniyle, vade başlangıcı $startStr olarak hesaplanmıştır.",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            } else {
+                                android.widget.Toast.makeText(context, "Lütfen ileri bir tarih seçiniz.", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Tamam", color = Emerald500)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("İptal", color = MaterialTheme.colorScheme.onSurface)
+                }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            )
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    headlineContentColor = MaterialTheme.colorScheme.onSurface,
+                    weekdayContentColor = MaterialTheme.colorScheme.onSurface,
+                    subheadContentColor = MaterialTheme.colorScheme.onSurface,
+                    dayContentColor = MaterialTheme.colorScheme.onSurface,
+                    todayDateBorderColor = Emerald500,
+                    yearContentColor = MaterialTheme.colorScheme.onSurface,
+                    currentYearContentColor = MaterialTheme.colorScheme.onSurface,
+                    selectedDayContainerColor = Emerald500,
+                    selectedDayContentColor = Color.White,
+                    dayInSelectionRangeContainerColor = Emerald500.copy(alpha = 0.2f),
+                    dayInSelectionRangeContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         }
     }
 }
@@ -573,7 +734,7 @@ fun PremiumTextField(
             visualTransformation = visualTransformation,
             singleLine = true,
             textStyle = TextStyle(
-                fontSize = 18.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             ),
             colors = OutlinedTextFieldDefaults.colors(
@@ -636,7 +797,7 @@ fun QuickOfferCard(offer: com.acesur.faizbul.data.BestOffer) {
         tonalElevation = 2.dp,
         shadowElevation = 4.dp
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -645,13 +806,13 @@ fun QuickOfferCard(offer: com.acesur.faizbul.data.BestOffer) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = offer.bankName,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "En Yüksek Oran",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -662,17 +823,17 @@ fun QuickOfferCard(offer: com.acesur.faizbul.data.BestOffer) {
                 ) {
                     Text(
                         text = "%${offer.rate}",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = Emerald600
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(modifier = Modifier.alpha(0.1f))
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             Row(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -684,7 +845,7 @@ fun QuickOfferCard(offer: com.acesur.faizbul.data.BestOffer) {
                     )
                     Text(
                         text = "₺${df.format(offer.minAmount)}",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -702,16 +863,16 @@ fun QuickOfferCard(offer: com.acesur.faizbul.data.BestOffer) {
                     }
                     Text(
                         text = daysText,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(modifier = Modifier.alpha(0.1f))
             Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(modifier = Modifier.alpha(0.1f))
+            Spacer(modifier = Modifier.height(8.dp))
             
             var showTableDialog by remember { mutableStateOf(false) }
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current

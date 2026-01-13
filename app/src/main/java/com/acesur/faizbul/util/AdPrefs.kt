@@ -24,4 +24,8 @@ object AdPrefs {
         _adsEnabled.value = enabled
         prefs.edit().putBoolean(KEY_ADS_ENABLED, enabled).apply()
     }
+
+    fun disableAdsTemporarily() {
+        _adsEnabled.value = false
+    }
 }
