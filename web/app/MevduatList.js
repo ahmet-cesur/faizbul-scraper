@@ -152,12 +152,12 @@ export default function MevduatList({ initialData }) {
                     ))
                 ) : (
                     <div className="card" style={{ textAlign: 'center', padding: '4rem' }}>
-                        <p style={{ color: var(--secondary) }}>Kriterlere uygun sonuç bulunamadı.</p>
-          </div>
-        )}
-        </div >
+                        <p style={{ color: 'var(--secondary)' }}>Kriterlere uygun sonuç bulunamadı.</p>
+                    </div>
+                )}
+            </div >
 
-            { selectedTable && (
+            {selectedTable && (
                 <div className="modal-overlay" onClick={() => setSelectedTable(null)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <button className="close-btn" onClick={() => setSelectedTable(null)}><X /></button>
@@ -188,7 +188,7 @@ export default function MevduatList({ initialData }) {
                     </div>
                 </div>
             )
-}
-    </>
-  );
+            }
+        </>
+    );
 }
