@@ -4,6 +4,8 @@ import { Landmark, Car, CreditCard, TrendingUp, ShieldCheck } from 'lucide-react
 
 const SPREADSHEET_ID = '1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY';
 
+export const revalidate = 3600; // Refresh data every hour
+
 async function getSheetData() {
     try {
         const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -36,7 +38,7 @@ async function getSheetData() {
             minDays: row.get('MinDays'),
             maxDays: row.get('MaxDays'),
             url: row.get('URL'),
-        })).filter(item => item.bank && item.rate);
+        })).filter(item => item.bank && item.rate).slice(0, 50); // Limit to top 50 rows for performance
     } catch (error) {
         console.error('Error fetching sheet data:', error);
         return getMockData();
