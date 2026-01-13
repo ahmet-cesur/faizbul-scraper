@@ -1,6 +1,7 @@
 import { JWT } from 'google-auth-library';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
-import { Landmark, Car, CreditCard, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Car, CreditCard, ShieldCheck } from 'lucide-react';
+import MevduatList from './MevduatList';
 
 const SPREADSHEET_ID = '1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY';
 
@@ -27,8 +28,6 @@ async function getSheetData() {
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
 
-        // Map rows to a cleaner format
-        // columns: Date, Bank, Desc, Rate, MinAmount, MaxAmount, MinDays, MaxDays, URL, JSON
         return rows.map(row => ({
             bank: row.get('Bank'),
             desc: row.get('Desc'),
@@ -38,7 +37,7 @@ async function getSheetData() {
             minDays: row.get('MinDays'),
             maxDays: row.get('MaxDays'),
             url: row.get('URL'),
-        })).filter(item => item.bank && item.rate).slice(0, 50); // Limit to top 50 rows for performance
+        })).filter(item => item.bank && item.rate).slice(0, 100);
     } catch (error) {
         console.error('Error fetching sheet data:', error);
         return getMockData();
@@ -50,6 +49,7 @@ function getMockData() {
         { bank: 'Akbank', desc: 'Tanışma Faizi', rate: '54.00', minAmount: '1000', maxAmount: '500000', minDays: '32', maxDays: '92', url: '#' },
         { bank: 'Garanti BBVA', desc: 'E-Vadeli', rate: '52.50', minAmount: '5000', maxAmount: '1000000', minDays: '32', maxDays: '365', url: '#' },
         { bank: 'Ziraat Bankası', desc: 'Vadeli Mevduat', rate: '48.00', minAmount: '1000', maxAmount: '10000000', minDays: '32', maxDays: '365', url: '#' },
+        { bank: 'Yapı Kredi', desc: 'E-Mevduat', rate: '51.00', minAmount: '1000', maxAmount: '500000', minDays: '32', maxDays: '365', url: '#' },
     ];
 }
 
@@ -78,51 +78,7 @@ export default async function Home() {
                     <p>Türkiye'deki tüm bankaların güncel mevduat faiz oranlarını anlık olarak karşılaştırın, en yüksek getiriyi bulun.</p>
                 </section>
 
-                <section className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h2 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <TrendingUp size={20} color="var(--primary)" />
-                            En Yüksek Mevduat Faizleri
-                        </h2>
-                        <span className="status-tag">Canlı Veri</span>
-                    </div>
-
-                    <div className="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Banka</th>
-                                    <th>Kampanya / Hesap Türü</th>
-                                    <th>Vade (Gün)</th>
-                                    <th>Faiz Oranı</th>
-                                    <th>Aksiyon</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.map((item, index) => (
-                                    <tr key={index}>
-                                        <td>
-                                            <div className="bank-cell">
-                                                <div className="bank-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9' }}>
-                                                    <Landmark size={18} color="#64748b" />
-                                                </div>
-                                                <span style={{ fontWeight: 600 }}>{item.bank}</span>
-                                            </div>
-                                        </td>
-                                        <td><span style={{ color: 'var(--secondary)', fontSize: '0.85rem' }}>{item.desc}</span></td>
-                                        <td>{item.minDays}-{item.maxDays} Gün</td>
-                                        <td>
-                                            <div className="rate-badge">%{item.rate}</div>
-                                        </td>
-                                        <td>
-                                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Hesapla</a>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                <MevduatList initialData={data} />
 
                 <section style={{ marginTop: '4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '4rem' }}>
                     <div className="card" style={{ textAlign: 'center' }}>
@@ -142,14 +98,14 @@ export default async function Home() {
                         <h3>Güvenilir Veri</h3>
                         <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>Tüm veriler bankaların resmi web sitelerinden otomatik botlarımızla çekilmektedir.</p>
                     </div>
-                </section >
-            </main >
+                </section>
+            </main>
 
             <footer style={{ borderTop: '1px solid var(--border)', padding: '2rem 0', marginTop: 'auto', textAlign: 'center', color: 'var(--secondary)', fontSize: '0.875rem' }}>
                 <div className="container">
                     <p>© 2026 kiyas.tr - Tüm hakları saklıdır. Veriler bilgilendirme amaçlıdır.</p>
                 </div>
             </footer>
-        </div >
+        </div>
     );
 }
