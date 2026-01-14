@@ -35,10 +35,14 @@ export default function MevduatList({ initialData }) {
     const parseTurkishNumber = (val) => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
-        // Remove thousands separator (dots) and replace decimal separator (comma) with dot
-        // Example: "1.250,50" -> "1250.50"
-        let clean = val.toString().replace(/\./g, '').replace(',', '.');
-        return parseFloat(clean) || 0;
+        const str = val.toString();
+        // Only apply Turkish conversion if a decimal comma is present
+        // This avoids incorrectly stripping dots from standard decimal numbers (e.g., "39.5" -> "395")
+        if (str.includes(',')) {
+            let clean = str.replace(/\./g, '').replace(',', '.');
+            return parseFloat(clean) || 0;
+        }
+        return parseFloat(str) || 0;
     };
 
     const filteredAndSortedData = useMemo(() => {
@@ -82,8 +86,8 @@ export default function MevduatList({ initialData }) {
 
     return (
         <>
-            <section className="card" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <section className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h2 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <TrendingUp size={20} color="var(--primary)" />
                         Faiz Hesaplama
@@ -93,11 +97,12 @@ export default function MevduatList({ initialData }) {
 
                 <div className="calculator-grid">
                     <div className="input-group">
-                        <label className="input-label">Yatırılacak Tutar</label>
+                        <label className="input-label" style={{ marginBottom: '0.25rem' }}>Yatırılacak Tutar</label>
                         <div className="input-wrapper">
                             <input
                                 type="number"
                                 className="input-field"
+                                style={{ padding: '0.75rem 1rem' }}
                                 value={amount}
                                 onChange={(e) => setAmount(Number(e.target.value))}
                             />
@@ -105,11 +110,12 @@ export default function MevduatList({ initialData }) {
                         </div>
                     </div>
                     <div className="input-group">
-                        <label className="input-label">Vade Süresi</label>
+                        <label className="input-label" style={{ marginBottom: '0.25rem' }}>Vade Süresi</label>
                         <div className="input-wrapper">
                             <input
                                 type="number"
                                 className="input-field"
+                                style={{ padding: '0.75rem 1rem' }}
                                 value={days}
                                 onChange={(e) => setDays(Number(e.target.value))}
                             />
@@ -122,39 +128,39 @@ export default function MevduatList({ initialData }) {
             <div className="results-list">
                 {filteredAndSortedData.length > 0 ? (
                     filteredAndSortedData.map((item, index) => (
-                        <div className="result-card fade-in" key={index}>
-                            <div className="card-header">
+                        <div className="result-card fade-in" key={index} style={{ padding: '1rem', borderRadius: '1rem' }}>
+                            <div className="card-header" style={{ marginBottom: '0.75rem' }}>
                                 <a href={item.url} target="_blank" rel="noopener noreferrer" className="bank-info" style={{ cursor: 'pointer' }}>
-                                    <div className="bank-logo-circle">
-                                        <Landmark size={24} color="var(--primary)" />
+                                    <div className="bank-logo-circle" style={{ width: '40px', height: '40px' }}>
+                                        <Landmark size={20} color="var(--primary)" />
                                     </div>
                                     <div>
-                                        <div className="bank-name">{item.bank}</div>
-                                        <div className="campaign-tag">{item.desc}</div>
+                                        <div className="bank-name" style={{ fontSize: '1rem' }}>{item.bank}</div>
+                                        <div className="campaign-tag" style={{ fontSize: '0.7rem' }}>{item.desc}</div>
                                     </div>
                                 </a>
                                 <div className="rate-area">
-                                    <span className="rate-label">Yıllık Faiz</span>
-                                    <div className="rate-value">%{item.rate}</div>
+                                    <span className="rate-label" style={{ fontSize: '0.65rem' }}>Yıllık Faiz</span>
+                                    <div className="rate-value" style={{ fontSize: '1.25rem' }}>%{item.rate}</div>
                                 </div>
                             </div>
 
-                            <div className="card-body" style={{ gridTemplateColumns: '1fr', gap: '0.75rem' }}>
-                                <div className="stat-item" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                            <div className="card-body" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', padding: '0.75rem', borderRadius: '0.75rem' }}>
+                                <div className="stat-item" style={{ flexDirection: 'column', alignItems: 'flex-start', border: 'none', padding: 0 }}>
                                     <span className="stat-label">Brüt Faiz</span>
-                                    <span className="stat-value">{formatCurrency(item.results.gross)}</span>
+                                    <span className="stat-value" style={{ fontSize: '0.9rem' }}>{formatCurrency(item.results.gross)}</span>
                                 </div>
-                                <div className="stat-item" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                                <div className="stat-item" style={{ flexDirection: 'column', alignItems: 'flex-start', border: 'none', padding: 0 }}>
                                     <span className="stat-label">Stopaj (%{item.results.stopajPercent})</span>
-                                    <span className="stat-value" style={{ color: '#ef4444' }}>-{formatCurrency(item.results.stopaj)}</span>
+                                    <span className="stat-value" style={{ color: '#ef4444', fontSize: '0.9rem' }}>-{formatCurrency(item.results.stopaj)}</span>
                                 </div>
-                                <div className="stat-item" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div className="stat-item" style={{ flexDirection: 'column', alignItems: 'flex-start', border: 'none', padding: 0 }}>
                                     <span className="stat-label">Net Kazanç</span>
-                                    <span className="stat-value" style={{ color: '#22c55e', fontSize: '1.25rem' }}>{formatCurrency(item.results.net)}</span>
+                                    <span className="stat-value" style={{ color: '#22c55e', fontSize: '1.1rem' }}>{formatCurrency(item.results.net)}</span>
                                 </div>
                             </div>
 
-                            <div className="card-footer" style={{ background: 'var(--accent)', margin: '-1.5rem', marginTop: '0', padding: '1rem 1.5rem', borderRadius: '0 0 1.25rem 1.25rem' }}>
+                            <div className="card-footer" style={{ background: 'var(--accent)', margin: '-1rem', marginTop: '0.75rem', padding: '0.75rem 1rem', borderRadius: '0 0 1rem 1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                                     <div style={{ textAlign: 'left' }}>
                                         <span className="stat-label">Vade Sonu Toplam</span>
