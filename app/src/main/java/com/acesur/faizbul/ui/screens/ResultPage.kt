@@ -670,31 +670,36 @@ fun ResultCard(
                     }
                     ScraperStatus.SUCCESS -> {
                         if (outOfBoundsMessage != null && state.rate == null) {
-                            Text(outOfBoundsMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.faiz_not_found), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                         } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                val formattedRate = formatRate(state.rate?.rate ?: 0.0)
-                                Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                                val rateValue = state.rate?.rate ?: 0.0
+                                if (rateValue <= 0.0) {
+                                    Text(stringResource(R.string.faiz_not_found), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                } else {
+                                    val formattedRate = formatRate(rateValue)
+                                    Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
+                                }
                                 Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
                             }
                         }
                     }
                     ScraperStatus.FAILED -> {
                         if (outOfBoundsMessage != null) {
-                            Text(outOfBoundsMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                        } else if (state.rate != null) {
+                            Text(stringResource(R.string.faiz_not_found), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        } else if (state.rate != null && state.rate.rate > 0.0) {
                             // We have a calculated cached rate - treat mostly like success but with valid brand colors
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 val formattedRate = formatRate(state.rate.rate)
                                 Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = cardContentColor, fontWeight = FontWeight.Bold)
                                 Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = cardContentColor)
                             }
-                        } else if (hasHistory) {
+                        } else if (hasHistory && (state.lastSuccessfulRate ?: 0.0) > 0.0) {
                             // History but no detailed calculation (shouldn't happen with new logic, but fallback)
                             val formattedRate = formatRate(state.lastSuccessfulRate ?: 0.0)
                             Text(formattedRate, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
                         } else {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.faiz_not_found), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                         }
                     }
                     ScraperStatus.WAITING -> {
