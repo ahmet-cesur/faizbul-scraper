@@ -340,40 +340,39 @@ async function main() {
                 }
             }
         }
-    }
 
         // Clear and update Sheet 1 with the merged data
         await dataSheet.clearRows();
-    if (finalSheet1Rows.length > 0) {
-        await dataSheet.addRows(finalSheet1Rows);
-        console.log('Sheet 1 updated (Successful banks overwritten, Failed banks preserved).');
-    }
+        if (finalSheet1Rows.length > 0) {
+            await dataSheet.addRows(finalSheet1Rows);
+            console.log('Sheet 1 updated (Successful banks overwritten, Failed banks preserved).');
+        }
 
-    // 3. Optional: Delete Logs sheet if it exists (Cleanup)
-    try {
-        const logSheet = doc.sheetsByTitle['Logs'];
-        if (logSheet) {
-            console.log('Deleting legacy Logs sheet for cleanup...');
-            await logSheet.delete();
+        // 3. Optional: Delete Logs sheet if it exists (Cleanup)
+        try {
+            const logSheet = doc.sheetsByTitle['Logs'];
+            if (logSheet) {
+                console.log('Deleting legacy Logs sheet for cleanup...');
+                await logSheet.delete();
+            }
+        } catch (e) {
+            console.log('Logs sheet already deleted or inaccessible.');
+        }
+
+        if (successCount < banks.length) {
+            const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
+            const errorMsg = `Scraper failed for: ${failedBanks.join(', ')}`;
+            if (process.env.GITHUB_ACTIONS) {
+                console.log(`::error::${errorMsg}`);
+            }
+            throw new Error(errorMsg);
         }
     } catch (e) {
-        console.log('Logs sheet already deleted or inaccessible.');
+        console.error('Finalization Error:', e.message);
+        throw e;
     }
 
-    if (successCount < banks.length) {
-        const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
-        const errorMsg = `Scraper failed for: ${failedBanks.join(', ')}`;
-        if (process.env.GITHUB_ACTIONS) {
-            console.log(`::error::${errorMsg}`);
-        }
-        throw new Error(errorMsg);
-    }
-} catch (e) {
-    console.error('Finalization Error:', e.message);
-    throw e;
-}
-
-await browser.close();
+    await browser.close();
 }
 
 main().catch(err => {
