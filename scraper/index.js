@@ -170,7 +170,7 @@ async function main() {
                     } catch (e) {
                         resolve({ status: 'ERROR', error: e.toString() });
                     }
-                    setTimeout(() => resolve({ status: 'TIMEOUT' }), 45000);
+                    setTimeout(() => resolve({ status: 'TIMEOUT' }), 60000);
                 });
             }, commonJs, bank.script, bank.desc, bank.name);
 

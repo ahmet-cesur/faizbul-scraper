@@ -26,6 +26,8 @@ module.exports = {
                         headers.push({ label: txt, minAmount: min, maxAmount: 999999999 });
                     }
                     
+                    Android.log('Table columns: ' + headers.map(h => h.label).join(' | '));
+                    
                     var tableRows = [];
                     for (var r = 1; r < rows.length; r++) {
                         var cells = rows[r].querySelectorAll('td, th'); 
@@ -43,6 +45,10 @@ module.exports = {
                             maxDays: durParsed ? durParsed.max : null, 
                             rates: rowRates 
                         });
+                    }
+                    
+                    if (tableRows.length > 0) {
+                        Android.log('Row 1 data: ' + tableRows[0].label + ' -> ' + tableRows[0].rates.join(', '));
                     }
                     
                     // VALIDATION: Ensure we have the high rates typical for Internet/Mobil
@@ -73,11 +79,10 @@ module.exports = {
                 if (step === 0) {
                     if (dd) {
                         Android.log('Setting dropdown to value 2 (Internet/Mobil)');
+                        dd.value = '2';
+                        dd.dispatchEvent(new Event('change', {bubbles:true}));
                         if (typeof $ !== 'undefined') { 
-                            $('#type').val('2').trigger('change'); 
-                        } else { 
-                            dd.value = '2'; 
-                            dd.dispatchEvent(new Event('change', {bubbles:true})); 
+                            $('#type').val('2').trigger('change').trigger('select2:select'); 
                         }
                         step = 1;
                         attempts = 0; 
