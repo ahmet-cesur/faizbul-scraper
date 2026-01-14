@@ -246,7 +246,7 @@ export default function MevduatList({ initialData }) {
                             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th style={{ background: '#020617', color: '#64748b', borderBottom: '1px solid #1e293b', textAlign: 'left', padding: '0.75rem' }}>Vade</th>
+                                        <th style={{ background: '#020617', color: '#64748b', borderBottom: '1px solid #1e293b', textAlign: 'left', padding: '0.75rem 1rem', minWidth: '100px' }}>Vade</th>
                                         {selectedTable.headers.map((h, i) => (
                                             <th key={i} style={{ background: '#020617', color: '#64748b', borderBottom: '1px solid #1e293b', textAlign: 'center', padding: '0.75rem', whiteSpace: 'nowrap' }}>
                                                 {h.label || h.minAmount.toLocaleString() + ' TL +'}
@@ -261,9 +261,10 @@ export default function MevduatList({ initialData }) {
                                             <tr key={i} style={{ background: isDayMatch ? 'rgba(59, 130, 246, 0.05)' : 'transparent' }}>
                                                 <td style={{
                                                     fontWeight: 600,
-                                                    padding: '0.75rem',
+                                                    padding: '0.75rem 1rem',
                                                     borderBottom: '1px solid #1e293b',
-                                                    color: isDayMatch ? 'var(--primary)' : '#94a3b8'
+                                                    color: isDayMatch ? 'var(--primary)' : '#94a3b8',
+                                                    whiteSpace: 'nowrap'
                                                 }}>
                                                     {row.label || `${row.minDays}-${row.maxDays} Gün`}
                                                 </td>
