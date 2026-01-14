@@ -267,8 +267,12 @@ async function main() {
         if (executionLogs.length > 0) await draftSheet.addRows(executionLogs);
 
         console.log('Performing selective update on Sheet 1...');
-        const dataSheet = doc.sheetsByTitle['Sheet 1'];
-        if (!dataSheet) throw new Error('Sheet 1 not found');
+        let dataSheet = doc.sheetsByTitle['Sheet 1'] || doc.sheetsByTitle['Sheet1'] || doc.sheetsByTitle['mewduat'] || doc.sheetsByTitle['Mevduat'];
+        if (!dataSheet && doc.sheetCount > 0) {
+            dataSheet = doc.sheetsByIndex[0];
+            console.log(`'Sheet 1' not found, defaulting to first sheet: '${dataSheet.title}'`);
+        }
+        if (!dataSheet) throw new Error('No data sheet found in the spreadsheet');
 
         let headersLoaded = false;
         try {

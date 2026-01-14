@@ -139,8 +139,8 @@ module.exports = {
                 }
             }, 1000);
         } catch(e) { 
-            console.log('FIBA_FATAL: ' + e.message);
-            Android.sendError('PARSING_ERROR'); 
+            // If context is destroyed, this might re-throw but the outer catch will handle it
+            Android.sendError('PARSING_ERROR: ' + e.message); 
         }
     })()`
 };

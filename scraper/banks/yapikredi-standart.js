@@ -5,17 +5,10 @@ module.exports = {
     script: `(function() {
         try {
             var attempts = 0;
+            var step = 0;
+            
             function extractYapikrediTable() {
                 var table = document.querySelector('#tableModal #mevduatTable');
-                if (!table) {
-                   var tables = document.querySelectorAll('table');
-                   for (var i=0; i<tables.length; i++) {
-                       if (tables[i].innerText.includes('Vade Süresi') && tables[i].rows.length > 5) {
-                           table = tables[i]; break;
-                       }
-                   }
-                }
-                
                 if (!table || table.rows.length < 3) return false;
                 
                 var headers = []; var headerCells = table.rows[0].cells;
@@ -58,7 +51,28 @@ module.exports = {
 
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                if (extractYapikrediTable()) clearInterval(interval);
+                
+                if (step === 0) {
+                   // Ensure Standart is selected (usually default)
+                   var labels = Array.from(document.querySelectorAll('label'));
+                   var standartLabel = labels.find(l => l.innerText.includes('e-Mevduat Faiz Oranları'));
+                   if (standartLabel) {
+                       var radio = document.getElementById(standartLabel.getAttribute('for'));
+                       if (radio) radio.click();
+                   }
+                   
+                   // Click tıklayınız
+                   var links = Array.from(document.querySelectorAll('a'));
+                   var link = links.find(a => a.innerText.toLowerCase().includes('tıklayınız') && a.parentElement.innerText.includes('e-Mevduat'));
+                   if (link) {
+                       link.click();
+                       step = 1;
+                       attempts = 0;
+                   }
+                } else {
+                   if (extractYapikrediTable()) clearInterval(interval);
+                }
+                
                 if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
             }, 1000);
         } catch(e) { Android.sendError('PARSING_ERROR'); }
