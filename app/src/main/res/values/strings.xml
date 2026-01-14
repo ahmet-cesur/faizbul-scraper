@@ -43,6 +43,6 @@
     <string name="label_session_best">BU OTURUMDAKİ EN YÜKSEK ORAN</string>
     <string name="label_amount_bracket">Tutar Aralığı:</string>
     <string name="label_duration_bracket">Vade Aralığı:</string>
-    <string name="faiz_not_found">Faiz bulunamadı</string>
+    <string name="faiz_not_found" translatable="false">Faiz bulunamadı</string>
     <string name="bank_data_warning">Bu uygulama, bankaların halka açık web sitelerinden derlenen verileri bir araya getirerek, her siteyi tek tek kontrol etme ihtiyacını ortadan kaldırmak ve kıyaslama sürenizi kısaltmak amacıyla geliştirilmiştir. Banka web sitelerindeki yoğunluk veya yapısal değişiklikler nedeniyle bazı veriler anlık olarak görüntülenemeyebilir; bu nedenle faiz oranlarını her zaman bankanın resmi sitesinden kontrol etmeniz önerilir. Ayrıca, banka şubeleriyle doğrudan görüşerek daha yüksek bir faiz oranı alma ihtimaliniz bulunmaktadır. Yatırım tavsiyesi değildir.</string>
 </resources>
