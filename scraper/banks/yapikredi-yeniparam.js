@@ -8,7 +8,6 @@ module.exports = {
             function extractYapikrediTable() {
                 var table = document.querySelector('#tableModal #mevduatTable');
                 if (!table) {
-                   // Fallback to searching all tables if ID is missing
                    var tables = document.querySelectorAll('table');
                    for (var i=0; i<tables.length; i++) {
                        if (tables[i].innerText.includes('Vade Süresi') && tables[i].rows.length > 5) {
@@ -32,9 +31,14 @@ module.exports = {
                     if (!durParsed) continue;
 
                     var rowRates = [];
-                    for (var c = 1; c < cells.length; c++) {
-                        var rate = smartParseNumber(cells[c].innerText);
-                        // Validation inside the script to avoid polluting the main log with 121% errors
+                    // Bound by headerCells.length to prevent index out of bounds
+                    for (var c = 1; c < headerCells.length; c++) {
+                        var cell = cells[c];
+                        if (!cell) {
+                            rowRates.push(null);
+                            continue;
+                        }
+                        var rate = smartParseNumber(cell.innerText);
                         if (isNaN(rate) || rate > 100) {
                             rowRates.push(null);
                         } else {

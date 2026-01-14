@@ -27,8 +27,6 @@ async function main() {
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
 
-
-
     const commonJs = `
         window.smartParseNumber = function(str) {
             if (!str) return NaN;
@@ -132,7 +130,6 @@ async function main() {
         const page = await browser.newPage();
         await page.setViewport({ width: 1280, height: 800 });
 
-        // Enable browser console logging in Node
         page.on('console', msg => {
             const type = msg.type();
             const text = msg.text();
@@ -185,7 +182,7 @@ async function main() {
                 let hasInvalidRate = (result.rate > 100);
                 let invalidRateValue = result.rate > 100 ? result.rate : null;
 
-                if (!hasInvalidRate) {
+                if (!hasInvalidRate && table.rows) {
                     for (const row of table.rows) {
                         for (const rate of row.rates) {
                             if (rate !== null && rate > 100) {
@@ -202,34 +199,35 @@ async function main() {
                     bankStatus = 'ERROR';
                     errorMessage = `Back-end validation failed: Found abnormal rate (${invalidRateValue})`;
                     console.warn(`Validation Error for ${bank.name}: Found rate ${invalidRateValue} > 100. Discarding all results.`);
-                } else {
-                    // Track success ONLY if validation passed
-                    successfulBankNames.add(`${bank.name.trim().toLowerCase()}|${result.desc.trim().toLowerCase()}`);
-
+                } else if (table.rows) {
                     table.rows.forEach(row => {
                         row.rates.forEach((rate, colIdx) => {
                             if (rate !== null && rate > 0) {
-                                const header = table.headers[colIdx];
+                                const header = table.headers && table.headers[colIdx];
+                                if (!header) return;
                                 allFlattenedRows.push([
                                     executionDate,
-                                    bank.name, // Use module name as source of truth
-                                    result.desc,
+                                    bank.name,
+                                    result.desc || bank.desc,
                                     rate,
                                     header.minAmount || 0,
                                     header.maxAmount || 999999999,
                                     row.minDays || 0,
                                     row.maxDays || 99999,
                                     bank.url,
-                                    result.json // Last column: Full table JSON
+                                    result.json
                                 ]);
                             }
                         });
                     });
+
+                    const successKey = `${bank.name.trim().toLowerCase()}|${(result.desc || bank.desc).trim().toLowerCase()}`;
+                    successfulBankNames.add(successKey);
+
                     rowCount = allFlattenedRows.length - bankRowsBefore;
-                    console.log(`Extracted table for ${result.bank}: ${rowCount} entries found.`);
+                    console.log(`Extracted table for ${bank.name} (${result.desc || bank.desc}): ${rowCount} entries found.`);
                 }
             } else {
-                // If status is not SUCCESS, or if SUCCESS but no JSON data was provided
                 if (result.status === 'SUCCESS' && !result.json) {
                     bankStatus = 'ERROR';
                     errorMessage = 'Scraper reported SUCCESS but returned no table data';
@@ -242,99 +240,61 @@ async function main() {
             console.error(`Fatal Error for ${bank.name}:`, e.message);
         } finally {
             const duration = ((Date.now() - bankStartTime) / 1000).toFixed(1);
-            executionLogs.push([
-                executionDate,
-                bank.name,
-                bankStatus,
-                rowCount,
-                `${duration}s`,
-                errorMessage
-            ]);
+            executionLogs.push([executionDate, bank.name, bankStatus, rowCount, `${duration}s`, errorMessage]);
             await page.close().catch(() => { });
         }
     }
 
     const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
     const successCount = executionLogs.filter(l => l[2] === 'SUCCESS').length;
-    console.log(`\nScraping Finished. Success: ${successCount}/${banks.length}. Total entries: ${allFlattenedRows.length}. Total time: ${totalDuration}s`);
+    console.log(`\\nScraping Finished. Success: ${successCount}/${banks.length}. Total entries: ${allFlattenedRows.length}. Total time: ${totalDuration}s`);
 
     try {
-        // 1. Always Update Draft Sheet (Wipe and write current run results)
         console.log('Updating Draft Sheet...');
         const MAIN_HEADERS = ['Date', 'Bank', 'Description', 'Rate', 'MinAmount', 'MaxAmount', 'MinDays', 'MaxDays', 'URL', 'TableJSON'];
         const DRAFT_HEADERS = [...MAIN_HEADERS, 'Status', 'Error'];
 
         let draftSheet = doc.sheetsByTitle['Draft'];
         if (!draftSheet) {
-            console.log('Draft sheet not found, creating one...');
             draftSheet = await doc.addSheet({ title: 'Draft', headerValues: DRAFT_HEADERS });
         } else {
-            // Safe Header Load for Draft
-            let draftHeadersLoaded = false;
-            try {
-                await draftSheet.loadHeaderRow();
-                draftHeadersLoaded = (draftSheet.headerValues && draftSheet.headerValues.length > 0);
-            } catch (e) {
-                console.log('Draft headers could not be loaded. Re-initializing...');
-            }
-
-            if (!draftHeadersLoaded || JSON.stringify(draftSheet.headerValues) !== JSON.stringify(DRAFT_HEADERS)) {
+            await draftSheet.loadHeaderRow();
+            if (JSON.stringify(draftSheet.headerValues) !== JSON.stringify(DRAFT_HEADERS)) {
                 await draftSheet.setHeaderRow(DRAFT_HEADERS);
             }
+            await draftSheet.clearRows();
         }
-        await draftSheet.clearRows();
+        if (executionLogs.length > 0) await draftSheet.addRows(executionLogs);
 
-        const draftRows = [];
-        allFlattenedRows.forEach(r => draftRows.push([...r, 'SUCCESS', '']));
-        executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').forEach(l => {
-            draftRows.push([l[0], l[1], 'FAILED_RUN', 0, 0, 0, 0, 0, '', '', l[2], l[5]]);
-        });
-
-        if (draftRows.length > 0) {
-            await draftSheet.addRows(draftRows);
-            console.log('Successfully updated Draft sheet.');
-        }
-
-        // 2. Perform Selective Update on Sheet 1 (Main Data)
         console.log('Performing selective update on Sheet 1...');
-        const dataSheet = doc.sheetsByIndex[0];
+        const dataSheet = doc.sheetsByTitle['Sheet 1'];
+        if (!dataSheet) throw new Error('Sheet 1 not found');
 
-        // Ensure Sheet 1 has correct headers at all times
         let headersLoaded = false;
         try {
             await dataSheet.loadHeaderRow();
             headersLoaded = (dataSheet.headerValues && dataSheet.headerValues.length > 0);
-        } catch (e) {
-            console.log('Sheet 1 headers could not be loaded (Sheet might be empty).');
-        }
+        } catch (e) { }
 
-        if (!headersLoaded || !dataSheet.headerValues.includes('Bank') || !dataSheet.headerValues.includes('MinAmount')) {
-            console.log('Setting/Fixing Sheet 1 headers...');
+        if (!headersLoaded || !dataSheet.headerValues.includes('Bank')) {
             await dataSheet.setHeaderRow(MAIN_HEADERS);
         }
 
         let existingRows = [];
-        try {
-            existingRows = await dataSheet.getRows();
-        } catch (e) {
-            console.log('No existing rows found in Sheet 1.');
-        }
-        const finalSheet1Rows = [];
+        try { existingRows = await dataSheet.getRows(); } catch (e) { }
 
-        // Add successful newly scraped rows
+        const finalSheet1Rows = [];
         allFlattenedRows.forEach(r => finalSheet1Rows.push(r));
 
-        // Preserve old rows for banks that failed this run
         if (existingRows.length > 0) {
             console.log(`Checking ${existingRows.length} existing rows for preservation...`);
             let preservedCount = 0;
             for (const row of existingRows) {
                 const bName = (row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka') || '').toString().trim();
                 const bDesc = (row.get('Description') || row.get('Desc') || row.get('Açıklama') || row.get('description') || '').toString().trim();
-
                 const key = `${bName.toLowerCase()}|${bDesc.toLowerCase()}`;
+
                 if (bName && !successfulBankNames.has(key)) {
-                    // Map values back to array order based on MAIN_HEADERS
                     const preservedRow = MAIN_HEADERS.map(h => {
                         const val = row.get(h) || row.get(h.toLowerCase());
                         return val !== undefined && val !== null ? val : '';
@@ -346,38 +306,22 @@ async function main() {
             console.log(`Preserved ${preservedCount} old entries.`);
         }
 
-        // Clear and update Sheet 1 with the merged data
         await dataSheet.clearRows();
         if (finalSheet1Rows.length > 0) {
             await dataSheet.addRows(finalSheet1Rows);
-            console.log('Sheet 1 updated (Successful banks overwritten, Failed banks preserved).');
+            console.log('Sheet 1 updated.');
         }
 
-        // 3. Optional: Delete Logs sheet if it exists (Cleanup)
-        try {
-            const logSheet = doc.sheetsByTitle['Logs'];
-            if (logSheet) {
-                console.log('Deleting legacy Logs sheet for cleanup...');
-                await logSheet.delete();
-            }
-        } catch (e) {
-            console.log('Logs sheet already deleted or inaccessible.');
-        }
-
-        if (successCount < banks.length) {
-            const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
-            const errorMsg = `Scraper failed for: ${failedBanks.join(', ')}`;
-            if (process.env.GITHUB_ACTIONS) {
-                console.log(`::error::${errorMsg}`);
-            }
-            throw new Error(errorMsg);
-        }
     } catch (e) {
         console.error('Finalization Error:', e.message);
         throw e;
     }
 
     await browser.close();
+    if (successCount < banks.length) {
+        const failedArr = executionLogs.filter(l => l[2] !== 'SUCCESS').map(l => l[1]);
+        throw new Error(`Scraper failed for: ${failedArr.join(', ')}`);
+    }
 }
 
 main().catch(err => {

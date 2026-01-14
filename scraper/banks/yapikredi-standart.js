@@ -31,8 +31,13 @@ module.exports = {
                     if (!durParsed) continue;
 
                     var rowRates = [];
-                    for (var c = 1; c < cells.length; c++) {
-                        var rate = smartParseNumber(cells[c].innerText);
+                    for (var c = 1; c < headerCells.length; c++) {
+                        var cell = cells[c];
+                        if (!cell) {
+                            rowRates.push(null);
+                            continue;
+                        }
+                        var rate = smartParseNumber(cell.innerText);
                         if (isNaN(rate) || rate > 100) {
                             rowRates.push(null);
                         } else {

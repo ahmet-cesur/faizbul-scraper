@@ -114,6 +114,7 @@ module.exports = {
                         btn.click();
                         step = 1; 
                         attempts = 0;
+                        return; // Exit interval tick to allow navigation if any
                     } else if (attempts > 5 && attempts % 5 === 0) {
                         Android.log('Accordion with ' + targetTitle + ' not found yet.');
                     }
