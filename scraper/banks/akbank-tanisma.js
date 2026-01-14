@@ -7,8 +7,9 @@ module.exports = {
             var amount = 100000; var duration = 32; var attempts = 0;
             \n            function extractAkbankTable() {
                 var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet') || t.innerText.includes('Tanışma'));
-                if (!table) return false;
-                var rows = table.rows; if (!rows || rows.length < 3) return false;
+                if (!table) { Android.log('Table not found'); return false; }
+                var rows = table.rows; if (!rows || rows.length < 3) { Android.log('Table has too few rows: ' + (rows ? rows.length : 0)); return false; }
+                Android.log('Found table matching Akbank criteria');
                 var headers = []; 
                 var hasValidHeader = false;
                 for (var i = 1; i < rows[0].cells.length; i++) {

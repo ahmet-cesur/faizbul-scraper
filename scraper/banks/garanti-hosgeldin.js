@@ -14,6 +14,8 @@ module.exports = {
                     var headerCells = rows[0].querySelectorAll('th, td');
                     if (headerCells.length < 2) continue;
                     
+                    Android.log('Checking table ' + t + ' with ' + rows.length + ' rows');
+                    
                     var headers = [];
                     var headerContainsValidAmount = false;
                     

@@ -73,11 +73,17 @@ export default async function Home() {
                             <a href="#" className="nav-link">Araç</a>
                             <a href="#" className="nav-link">Kredi</a>
                         </div>
-                        <a href="https://play.google.com/store/apps/details?id=com.acesur.faizbul" className="btn-primary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                <path d="M3.609 1.814L13.792 12 3.61 22.186c-.18.18-.346.12-.457-.064L3.003 2.015c-.056-.252.2-.331.606-.201zm11.109 9.14l3.193 1.831c.749.43.749 1.13 0 1.56l-3.193 1.83-2.903-2.91 2.903-2.911zm-3.844-3.845l3.158-3.158 3.03 1.738c.749.43.749 1.13 0 1.56L14.032 9.1l-3.158-1.991zm0 9.782l3.158 1.99 3.03 1.73c.749.43.749 1.13 0 1.56l-3.03 1.738-3.158-3.158V16.89z" />
+                        <a href="https://play.google.com/store/apps/details?id=com.acesur.faizbul" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: '#fff', borderRadius: '8px', border: '1px solid #333' }}>
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path fill="#4285F4" d="M3 20.5v-17c0-.9.7-1.3 1.4-.8l10.8 9c.4.3.4.9 0 1.2l-10.8 9c-.7.5-1.4.1-1.4-.4z" />
+                                <path fill="#EA4335" d="M19.3 12L4.4 22c-.6.4-1.4 0-1.4-.8v-2.4l13.5-9c.4-.3.4-.9 0-1.2L3 3.4V1c0-.8.8-1.2 1.4-.8l14.9 10c.8.5.8 1.3 0 1.8z" />
+                                <path fill="#FBBC05" d="M15.2 12L3 20.1V3.9L15.2 12z" />
+                                <path fill="#34A853" d="M15.2 12L3 3.9c0-.9.7-1.3 1.4-.8l10.8 9c.4.3.4.9 0 1.2z" opacity="0.1" />
                             </svg>
-                            <span>Uygulamayı İndir</span>
+                            <div style={{ textAlign: 'left', lineHeight: '1.1' }}>
+                                <div style={{ fontSize: '10px', fontWeight: 500, opacity: 0.8 }}>GET IT ON</div>
+                                <div style={{ fontSize: '14px', fontWeight: 700 }}>Google Play</div>
+                            </div>
                         </a>
                     </nav>
                 </div>

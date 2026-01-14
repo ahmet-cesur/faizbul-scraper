@@ -30,6 +30,14 @@ async function main() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
 
+    // Enable browser console logging in Node
+    page.on('console', msg => {
+        const type = msg.type();
+        const text = msg.text();
+        if (type === 'error' || text.includes('SC_ERROR')) console.error(`[BROWSER ERROR] ${text}`);
+        else if (text.includes('INTERN:')) console.log(`[BROWSER] ${text.replace('INTERN:', '').trim()}`);
+    });
+
     const commonJs = `
         window.smartParseNumber = function(str) {
             if (!str) return NaN;
@@ -137,10 +145,16 @@ async function main() {
                 return new Promise((resolve) => {
                     window.Android = {
                         sendRateWithTable: (rate, desc, name, json) => {
-                            resolve({ status: 'SUCCESS', rate, desc, bank: name, json });
+                            if (!window.Android.resolved) {
+                                window.Android.resolved = true;
+                                resolve({ status: 'SUCCESS', rate, desc, bank: name, json });
+                            }
                         },
                         sendError: (err) => {
-                            resolve({ status: 'ERROR', error: err, bank: bankName });
+                            if (!window.Android.resolved) {
+                                window.Android.resolved = true;
+                                resolve({ status: 'ERROR', error: err, bank: bankName });
+                            }
                         },
                         log: (msg) => { console.log('INTERN:', msg); }
                     };
@@ -163,7 +177,9 @@ async function main() {
             errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
-                successfulBankNames.add(bank.name);
+                // IMPORTANT: Track by the bank name returned by the scraper, NOT the module name,
+                // to match how we store it in the sheet rows.
+                successfulBankNames.add(result.bank);
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
