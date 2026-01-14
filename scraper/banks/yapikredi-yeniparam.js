@@ -8,35 +8,75 @@ module.exports = {
             var step = 0;
 
             function extractYapikrediTable() {
-                var table = document.querySelector('#tableModal #mevduatTable');
-                if (!table || table.rows.length < 3) return false;
+                // Improved selector for FooTable
+                var table = document.getElementById('mevduatTable') || document.querySelector('table[data-paging="true"]');
+                if (!table || table.rows.length < 2) return false;
                 
-                var headers = []; var headerCells = table.rows[0].cells;
-                for (var i = 1; i < headerCells.length; i++) {
-                    headers.push({ label: headerCells[i].innerText.trim(), minAmount: 1000, maxAmount: 999999999 });
+                var headers = []; 
+                var headerCells = table.rows[0].cells;
+                
+                // Hardcoded ranges as FooTable often hides headers
+                if (headerCells.length <= 1 || true) { // Force use of ranges as we know them
+                   var ykRanges = [
+                       { min: 1000, max: 24999 },
+                       { min: 25000, max: 99999 },
+                       { min: 100000, max: 249999 },
+                       { min: 250000, max: 499999 },
+                       { min: 500000, max: 999999 },
+                       { min: 1000000, max: 2999999 },
+                       { min: 3000000, max: 15000000 }
+                   ];
+                   
+                   headers = ykRanges.map(function(r) {
+                       return { label: r.min + " - " + r.max + " TL", minAmount: r.min, maxAmount: r.max };
+                   });
                 }
-                
+
                 var tableRows = [];
+                // Check if duration is in first or last column (FooTable quirk)
+                var durationIndex = 0;
+                // If the first cell of a body row looks empty or weird, and last is filled, swap?
+                // Actually, standard logic observed:
+                // If it's the collapsed view, things are hidden.
+                // We rely on standard parsing but need to respect the columns.
+                
                 for (var r = 1; r < table.rows.length; r++) {
-                    var cells = table.rows[r].cells; if (cells.length < 2) continue;
-                    var durTxt = cells[0].innerText.trim(); 
+                    var cells = table.rows[r].cells; 
+                    if (cells.length < 2) continue;
+                    
+                    // Logic from standard scraper fix
+                    var durTxt = cells[durationIndex].innerText.trim();
+                    
+                    // FooTable: Sometimes Vade is in the LAST column if 'toggle' class exists
+                    if (cells[cells.length-1].classList.contains('footable-toggle') || cells[cells.length-1].innerText.toLowerCase().includes('gün')) {
+                         var lastTxt = cells[cells.length-1].innerText.trim();
+                         if (lastTxt.includes('Gün') || lastTxt.includes('Yıl')) durTxt = lastTxt;
+                    }
+
                     var durParsed = parseDuration(durTxt);
                     if (!durParsed) continue;
 
                     var rowRates = [];
-                    for (var c = 1; c < headerCells.length; c++) {
-                        var cell = cells[c];
-                        if (!cell) {
-                            rowRates.push(null);
-                            continue;
-                        }
+                    // Data columns are indices 1..7 likely (matching ranges)
+                    // We simply take the first 7 numeric-looking cells after skipping assumed duration?
+                    // No, let's stick to index 1...headers.length
+                    
+                    var dataStartIndex = 1;
+                    // If table has exactly 8 columns (Vade + 7 ranges)
+                    
+                    for (var c = 0; c < headers.length; c++) {
+                        var cellIdx = dataStartIndex + c;
+                        if (cellIdx >= cells.length) { rowRates.push(null); continue; }
+                        
+                        var cell = cells[cellIdx];
                         var rate = smartParseNumber(cell.innerText);
-                        if (isNaN(rate) || rate > 100) {
+                         if (isNaN(rate) || rate > 100) {
                             rowRates.push(null);
                         } else {
                             rowRates.push(rate);
                         }
                     }
+                    
                     if (rowRates.some(r => r !== null)) {
                         tableRows.push({ label: durTxt, minDays: durParsed.min, maxDays: durParsed.max, rates: rowRates });
                     }
