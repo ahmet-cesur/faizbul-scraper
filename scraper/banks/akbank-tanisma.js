@@ -1,5 +1,5 @@
 module.exports = {
-    name: "Akbank - Tanışma",
+    name: "Akbank",
     url: "https://www.akbank.com/kampanyalar/vadeli-mevduat-tanisma-kampanyasi",
     desc: "Tanışma Faizi",
     script: `(function() {

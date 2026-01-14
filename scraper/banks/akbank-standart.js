@@ -1,5 +1,5 @@
 module.exports = {
-    name: "Akbank - Standart",
+    name: "Akbank",
     url: "https://www.akbank.com/mevduat-yatirim/mevduat/vadeli-mevduat-hesaplari/vadeli-mevduat-hesabi",
     desc: "Standart Vadeli",
     script: `(function() {

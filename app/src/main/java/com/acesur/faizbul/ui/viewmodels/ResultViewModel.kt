@@ -70,8 +70,19 @@ class ResultViewModel : ViewModel() {
         allScrapers.forEach { spec ->
             // 1. Check Google Sheet Data
             val bankRates = sheetRates.filter { 
-                it.bankName == spec.bankName && 
-                (it.description == spec.description || spec.description.contains(it.description) || it.description.contains(spec.description)) 
+                val sheetBank = it.bankName.lowercase().trim()
+                val specBank = spec.bankName.lowercase().trim()
+                val bankMatch = sheetBank == specBank || 
+                               sheetBank.contains(specBank) || 
+                               specBank.contains(sheetBank)
+
+                val sheetDesc = it.description.lowercase().trim()
+                val specDesc = spec.description.lowercase().trim()
+                val descMatch = sheetDesc == specDesc || 
+                               sheetDesc.contains(specDesc) || 
+                               specDesc.contains(sheetDesc)
+
+                bankMatch && descMatch
             }
             
             // Find one that matches bounds

@@ -1,5 +1,5 @@
 module.exports = {
-    name: "Garanti BBVA - Standart",
+    name: "Garanti BBVA",
     url: "https://www.garantibbva.com.tr/mevduat/e-vadeli-hesap",
     desc: "Standart E-Vadeli",
     script: `(function() {

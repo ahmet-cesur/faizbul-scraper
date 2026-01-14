@@ -1,5 +1,5 @@
 module.exports = {
-    name: "Garanti BBVA - Hoş Geldin",
+    name: "Garanti BBVA",
     url: "https://www.garantibbva.com.tr/mevduat/hos-geldin-faizi",
     desc: "Hoş Geldin Faizi",
     script: `(function() {

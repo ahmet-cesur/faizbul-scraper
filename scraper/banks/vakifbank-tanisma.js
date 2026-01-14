@@ -1,5 +1,5 @@
 module.exports = {
-    name: "VakıfBank - Tanışma",
+    name: "VakıfBank",
     url: "https://www.vakifbank.com.tr/tr/hesaplama-araclari/mevduat-faiz-oranlari",
     desc: "Tanışma Kampanyası",
     script: `(function() {

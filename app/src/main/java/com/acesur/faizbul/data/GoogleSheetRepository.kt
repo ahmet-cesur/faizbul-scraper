@@ -43,9 +43,9 @@ object GoogleSheetRepository {
                        val dateStr = tokens[0]
                        val bank = tokens[1]
                        val desc = tokens[2]
-                       val rate = tokens[3].toDoubleOrNull() ?: 0.0
-                       val minAmount = tokens[4].toDoubleOrNull() ?: 0.0
-                       val maxAmount = tokens[5].toDoubleOrNull() ?: 0.0
+                       val rate = tokens[3].replace(",", ".").toDoubleOrNull() ?: 0.0
+                       val minAmount = tokens[4].replace(",", ".").toDoubleOrNull() ?: 0.0
+                       val maxAmount = tokens[5].replace(",", ".").toDoubleOrNull() ?: 0.0
                        val minDays = tokens[6].toIntOrNull() ?: 0
                        val maxDays = tokens[7].toIntOrNull() ?: 99999
                        val urlStr = tokens[8]
@@ -139,14 +139,14 @@ object GoogleSheetRepository {
                     inQuotes = !inQuotes
                 }
             } else if (c == ',' && !inQuotes) {
-                tokens.add(currentToken.toString()) // Don't trim, preserve exact content
+                tokens.add(currentToken.toString().trim()) // Trim to avoid parsing errors
                 currentToken.clear()
             } else {
                 currentToken.append(c)
             }
             i++
         }
-        tokens.add(currentToken.toString())
+        tokens.add(currentToken.toString().trim())
         return tokens
     }
 }

@@ -179,8 +179,8 @@ async function main() {
             errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
-                // Track success using the module's name property
-                successfulBankNames.add(bank.name);
+                // Track success using composite key of name and description
+                successfulBankNames.add(`${bank.name}|${bank.desc}`);
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
@@ -307,7 +307,7 @@ async function main() {
             console.log('Sheet 1 headers could not be loaded (Sheet might be empty).');
         }
 
-        if (!headersLoaded || dataSheet.headerValues[1] !== 'Bank') {
+        if (!headersLoaded || !dataSheet.headerValues.includes('Bank') || !dataSheet.headerValues.includes('MinAmount')) {
             console.log('Setting/Fixing Sheet 1 headers...');
             await dataSheet.setHeaderRow(MAIN_HEADERS);
         }
@@ -326,8 +326,10 @@ async function main() {
         // Preserve old rows for banks that failed this run
         if (existingRows.length > 0) {
             for (const row of existingRows) {
-                const bankNameInRow = row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka');
-                if (bankNameInRow && !successfulBankNames.has(bankNameInRow)) {
+                const bName = row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka');
+                const bDesc = row.get('Description') || row.get('Desc') || row.get('Açıklama') || row.get('description');
+
+                if (bName && !successfulBankNames.has(`${bName}|${bDesc}`)) {
                     // Map values back to array order based on MAIN_HEADERS
                     // Check for both original and lowercase header names to be robust
                     const preservedRow = MAIN_HEADERS.map(h => {
@@ -338,39 +340,40 @@ async function main() {
                 }
             }
         }
+    }
 
         // Clear and update Sheet 1 with the merged data
         await dataSheet.clearRows();
-        if (finalSheet1Rows.length > 0) {
-            await dataSheet.addRows(finalSheet1Rows);
-            console.log('Sheet 1 updated (Successful banks overwritten, Failed banks preserved).');
-        }
-
-        // 3. Optional: Delete Logs sheet if it exists (Cleanup)
-        try {
-            const logSheet = doc.sheetsByTitle['Logs'];
-            if (logSheet) {
-                console.log('Deleting legacy Logs sheet for cleanup...');
-                await logSheet.delete();
-            }
-        } catch (e) {
-            console.log('Logs sheet already deleted or inaccessible.');
-        }
-
-        if (successCount < banks.length) {
-            const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
-            const errorMsg = `Scraper failed for: ${failedBanks.join(', ')}`;
-            if (process.env.GITHUB_ACTIONS) {
-                console.log(`::error::${errorMsg}`);
-            }
-            throw new Error(errorMsg);
-        }
-    } catch (e) {
-        console.error('Finalization Error:', e.message);
-        throw e;
+    if (finalSheet1Rows.length > 0) {
+        await dataSheet.addRows(finalSheet1Rows);
+        console.log('Sheet 1 updated (Successful banks overwritten, Failed banks preserved).');
     }
 
-    await browser.close();
+    // 3. Optional: Delete Logs sheet if it exists (Cleanup)
+    try {
+        const logSheet = doc.sheetsByTitle['Logs'];
+        if (logSheet) {
+            console.log('Deleting legacy Logs sheet for cleanup...');
+            await logSheet.delete();
+        }
+    } catch (e) {
+        console.log('Logs sheet already deleted or inaccessible.');
+    }
+
+    if (successCount < banks.length) {
+        const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
+        const errorMsg = `Scraper failed for: ${failedBanks.join(', ')}`;
+        if (process.env.GITHUB_ACTIONS) {
+            console.log(`::error::${errorMsg}`);
+        }
+        throw new Error(errorMsg);
+    }
+} catch (e) {
+    console.error('Finalization Error:', e.message);
+    throw e;
+}
+
+await browser.close();
 }
 
 main().catch(err => {

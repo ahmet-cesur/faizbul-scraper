@@ -1,5 +1,5 @@
 module.exports = {
-    name: "VakıfBank - Standart",
+    name: "VakıfBank",
     url: "https://www.vakifbank.com.tr/tr/hesaplama-araclari/mevduat-faiz-oranlari",
     desc: "E-Vadeli Hesabı",
     script: `(function() {

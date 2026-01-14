@@ -1,5 +1,5 @@
 module.exports = {
-    name: "Yapı Kredi - Standart",
+    name: "Yapı Kredi",
     url: "https://www.yapikredi.com.tr/bireysel-bankacilik/hesaplama-araclari/e-mevduat-faizi-hesaplama",
     desc: "e-Mevduat",
     script: `(function() {
