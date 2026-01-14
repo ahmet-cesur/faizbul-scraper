@@ -320,6 +320,11 @@ tr:last-child td {
   display: flex;
   align-items: center;
   gap: 1rem;
+  transition: opacity 0.2s;
+}
+
+.bank-info:hover {
+  opacity: 0.7;
 }
 
 .bank-logo-circle {

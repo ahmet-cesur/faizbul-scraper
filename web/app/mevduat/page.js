@@ -43,8 +43,8 @@ async function getSheetData() {
             const maxAmount = row.get('MaxAmount') || row.get('MaxTutar') || '999999999';
             const minDays = row.get('MinDays') || row.get('MinGün') || '0';
             const maxDays = row.get('MaxDays') || row.get('MaxGün') || '99999';
-            const url = row.get('URL') || row.get('url') || '#';
-            const fullJson = row.get('JSON') || row.get('json') || null;
+            const url = row.get('URL') || row.get('url') || row.get('Link') || '#';
+            const fullJson = row.get('TableJSON') || row.get('tablejson') || row.get('JSON') || row.get('json') || null;
 
             return { bank, desc, rate, minAmount, maxAmount, minDays, maxDays, url, fullJson };
         }).filter(item => item.bank && item.rate !== '0').slice(0, 100);

@@ -96,7 +96,7 @@ export default function MevduatList({ initialData }) {
                     filteredAndSortedData.map((item, index) => (
                         <div className="result-card fade-in" key={index}>
                             <div className="card-header">
-                                <div className="bank-info">
+                                <a href={item.url} target="_blank" rel="noopener noreferrer" className="bank-info" style={{ cursor: 'pointer' }}>
                                     <div className="bank-logo-circle">
                                         <Landmark size={24} color="var(--primary)" />
                                     </div>
@@ -104,48 +104,48 @@ export default function MevduatList({ initialData }) {
                                         <div className="bank-name">{item.bank}</div>
                                         <div className="campaign-tag">{item.desc}</div>
                                     </div>
-                                </div>
+                                </a>
                                 <div className="rate-area">
                                     <span className="rate-label">Yıllık Faiz</span>
                                     <div className="rate-value">%{item.rate}</div>
                                 </div>
                             </div>
 
-                            <div className="card-body">
-                                <div className="stat-item">
+                            <div className="card-body" style={{ gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+                                <div className="stat-item" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                                     <span className="stat-label">Brüt Faiz</span>
                                     <span className="stat-value">{formatCurrency(item.results.gross)}</span>
                                 </div>
-                                <div className="stat-item">
+                                <div className="stat-item" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                                     <span className="stat-label">Stopaj (%{item.results.stopajPercent})</span>
                                     <span className="stat-value" style={{ color: '#ef4444' }}>-{formatCurrency(item.results.stopaj)}</span>
                                 </div>
-                                <div className="stat-item">
+                                <div className="stat-item" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span className="stat-label">Net Kazanç</span>
-                                    <span className="stat-value" style={{ color: '#22c55e' }}>{formatCurrency(item.results.net)}</span>
+                                    <span className="stat-value" style={{ color: '#22c55e', fontSize: '1.25rem' }}>{formatCurrency(item.results.net)}</span>
                                 </div>
                             </div>
 
-                            <div className="card-footer">
-                                <div style={{ display: 'flex', gap: '1rem' }}>
-                                    {item.fullJson && (
-                                        <button
-                                            onClick={() => setSelectedTable(JSON.parse(item.fullJson))}
-                                            className="nav-link"
-                                            style={{ border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem' }}
-                                        >
-                                            <Table size={14} /> Tüm Oranlar
-                                        </button>
-                                    )}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ textAlign: 'right' }}>
+                            <div className="card-footer" style={{ background: 'var(--accent)', margin: '-1.5rem', marginTop: '0', padding: '1rem 1.5rem', borderRadius: '0 0 1.25rem 1.25rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                    <div style={{ textAlign: 'left' }}>
                                         <span className="stat-label">Vade Sonu Toplam</span>
-                                        <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>{formatCurrency(item.results.total)}</div>
+                                        <div style={{ fontWeight: 800, fontSize: '1.2rem' }}>{formatCurrency(item.results.total)}</div>
                                     </div>
-                                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '0.6rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        Başvur <ChevronRight size={16} />
-                                    </a>
+                                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                        {item.fullJson && (
+                                            <button
+                                                onClick={() => setSelectedTable(JSON.parse(item.fullJson))}
+                                                className="btn-secondary"
+                                                style={{ padding: '0.6rem 1rem', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, borderRadius: '8px' }}
+                                            >
+                                                <Table size={16} /> Tablo
+                                            </button>
+                                        )}
+                                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '0.6rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px' }}>
+                                            Başvur <ChevronRight size={16} />
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
