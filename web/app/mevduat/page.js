@@ -12,7 +12,7 @@ export const metadata = {
     description: "Türkiye'nin tüm bankalarının en güncel mevduat faiz oranlarını karşılaştırın, net kazancınızı hesaplayın.",
 };
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 async function getSheetData() {
     try {
@@ -36,18 +36,27 @@ async function getSheetData() {
         const rows = await sheet.getRows();
 
         return rows.map(row => {
-            const bank = row.get('Bank') || row.get('Banka') || row.get('bank') || 'Bilinmeyen Banka';
-            const desc = row.get('Desc') || row.get('Açıklama') || row.get('description') || '';
-            const rate = row.get('Rate') || row.get('Faiz') || row.get('rate') || '0';
-            const minAmount = row.get('MinAmount') || row.get('MinTutar') || '0';
-            const maxAmount = row.get('MaxAmount') || row.get('MaxTutar') || '999999999';
-            const minDays = row.get('MinDays') || row.get('MinGün') || '0';
-            const maxDays = row.get('MaxDays') || row.get('MaxGün') || '99999';
-            const url = row.get('URL') || row.get('url') || row.get('Link') || '#';
-            const fullJson = row.get('TableJSON') || row.get('tablejson') || row.get('JSON') || row.get('json') || null;
+            // Helper to get value case-insensitively
+            const getVal = (possibleNames) => {
+                for (const name of possibleNames) {
+                    const val = row.get(name);
+                    if (val !== undefined && val !== null && val !== '') return val;
+                }
+                return null;
+            };
+
+            const bank = getVal(['Bank', 'Banka', 'bank']) || 'Bilinmeyen Banka';
+            const desc = getVal(['Description', 'Desc', 'Açıklama', 'description']) || '';
+            const rate = getVal(['Rate', 'Faiz', 'rate', 'faiz']) || '0';
+            const minAmount = getVal(['MinAmount', 'MinTutar', 'minamount']) || '0';
+            const maxAmount = getVal(['MaxAmount', 'MaxTutar', 'maxamount']) || '999999999';
+            const minDays = getVal(['MinDays', 'MinGün', 'mindays']) || '0';
+            const maxDays = getVal(['MaxDays', 'MaxGün', 'maxdays']) || '99999';
+            const url = getVal(['URL', 'url', 'Link', 'link']) || '#';
+            const fullJson = getVal(['TableJSON', 'tablejson', 'JSON', 'json']) || null;
 
             return { bank, desc, rate, minAmount, maxAmount, minDays, maxDays, url, fullJson };
-        }).filter(item => item.bank && item.rate !== '0').slice(0, 100);
+        }).filter(item => item.bank && item.bank !== 'Bilinmeyen Banka' && item.rate !== '0').slice(0, 100);
     } catch (error) {
         console.error('Error fetching sheet data:', error);
         return getMockData();

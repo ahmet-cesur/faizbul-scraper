@@ -329,7 +329,11 @@ async function main() {
                 const bankNameInRow = row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka');
                 if (bankNameInRow && !successfulBankNames.has(bankNameInRow)) {
                     // Map values back to array order based on MAIN_HEADERS
-                    const preservedRow = MAIN_HEADERS.map(h => row.get(h));
+                    // Check for both original and lowercase header names to be robust
+                    const preservedRow = MAIN_HEADERS.map(h => {
+                        const val = row.get(h) || row.get(h.toLowerCase());
+                        return val !== undefined && val !== null ? val : '';
+                    });
                     finalSheet1Rows.push(preservedRow);
                 }
             }
