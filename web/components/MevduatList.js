@@ -12,13 +12,13 @@ export default function MevduatList({ initialData }) {
         // Basic Turkish Deposit calculation
         const grossProfit = (amt * rate * d) / 36500;
 
-        // Stopaj Rates:
-        // Up to 6 months: 7.5%
-        // Up to 1 year: 5%
-        // Over 1 year: 2.5%
-        let stopajRate = 0.075;
-        if (d > 180 && d <= 365) stopajRate = 0.05;
-        if (d > 365) stopajRate = 0.025;
+        // Stopaj Rates (Updated to match Android logic):
+        // Up to 182 days (approx 6 months): 17.5%
+        // Up to 365 days (1 year): 15%
+        // Over 1 year: 10%
+        let stopajRate = 0.10;
+        if (d <= 182) stopajRate = 0.175;
+        else if (d <= 365) stopajRate = 0.15;
 
         const stopajAmount = grossProfit * stopajRate;
         const netProfit = grossProfit - stopajAmount;
