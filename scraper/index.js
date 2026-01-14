@@ -27,16 +27,7 @@ async function main() {
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 800 });
 
-    // Enable browser console logging in Node
-    page.on('console', msg => {
-        const type = msg.type();
-        const text = msg.text();
-        if (type === 'error' || text.includes('SC_ERROR')) console.error(`[BROWSER ERROR] ${text}`);
-        else if (text.includes('INTERN:')) console.log(`[BROWSER] ${text.replace('INTERN:', '').trim()}`);
-    });
 
     const commonJs = `
         window.smartParseNumber = function(str) {
@@ -138,6 +129,17 @@ async function main() {
         let rowCount = 0;
         let errorMessage = '';
 
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1280, height: 800 });
+
+        // Enable browser console logging in Node
+        page.on('console', msg => {
+            const type = msg.type();
+            const text = msg.text();
+            if (type === 'error' || text.includes('SC_ERROR')) console.error(`[BROWSER ERROR] ${text}`);
+            else if (text.includes('INTERN:')) console.log(`[BROWSER] ${text.replace('INTERN:', '').trim()}`);
+        });
+
         try {
             await page.goto(bank.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
@@ -177,9 +179,8 @@ async function main() {
             errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
-                // IMPORTANT: Track by the bank name returned by the scraper, NOT the module name,
-                // to match how we store it in the sheet rows.
-                successfulBankNames.add(result.bank);
+                // Track success using the module's name property
+                successfulBankNames.add(bank.name);
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
@@ -210,7 +211,7 @@ async function main() {
                                 const header = table.headers[colIdx];
                                 allFlattenedRows.push([
                                     executionDate,
-                                    result.bank,
+                                    bank.name, // Use module name as source of truth
                                     result.desc,
                                     rate,
                                     header.minAmount || 0,
@@ -248,6 +249,7 @@ async function main() {
                 `${duration}s`,
                 errorMessage
             ]);
+            await page.close().catch(() => { });
         }
     }
 
@@ -324,7 +326,7 @@ async function main() {
         // Preserve old rows for banks that failed this run
         if (existingRows.length > 0) {
             for (const row of existingRows) {
-                const bankNameInRow = row.get('Bank') || row.get('bank');
+                const bankNameInRow = row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka');
                 if (bankNameInRow && !successfulBankNames.has(bankNameInRow)) {
                     // Map values back to array order based on MAIN_HEADERS
                     const preservedRow = MAIN_HEADERS.map(h => row.get(h));
