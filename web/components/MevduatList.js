@@ -32,20 +32,48 @@ export default function MevduatList({ initialData }) {
         };
     };
 
+    const parseTurkishNumber = (val) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        // Remove thousands separator (dots) and replace decimal separator (comma) with dot
+        // Example: "1.250,50" -> "1250.50"
+        let clean = val.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(clean) || 0;
+    };
+
     const filteredAndSortedData = useMemo(() => {
-        return initialData
+        const results = initialData
             .filter(item => {
-                const minAmt = parseFloat(item.minAmount) || 0;
-                const maxAmt = parseFloat(item.maxAmount) || 999999999;
+                const minAmt = parseTurkishNumber(item.minAmount);
+                // If maxAmount is effectively infinite or default string, ensure it's handled
+                const rawMax = parseTurkishNumber(item.maxAmount);
+                const maxAmt = rawMax === 0 ? 999999999 : rawMax;
+
                 const minD = parseInt(item.minDays) || 0;
                 const maxD = parseInt(item.maxDays) || 99999;
+
                 return amount >= minAmt && amount <= maxAmt && days >= minD && days <= maxD;
             })
             .map(item => ({
                 ...item,
-                results: calculateRates(parseFloat(item.rate), amount, days)
+                results: calculateRates(parseTurkishNumber(item.rate), amount, days)
             }))
             .sort((a, b) => b.results.net - a.results.net);
+
+        // Deduplicate: Keep only the best offer per bank
+        const uniqueBanks = [];
+        const seenBanks = new Set();
+
+        for (const item of results) {
+            // Normalize bank name to handle slight variations
+            const normName = item.bank.toLowerCase().trim();
+            if (!seenBanks.has(normName)) {
+                seenBanks.add(normName);
+                uniqueBanks.push(item);
+            }
+        }
+
+        return uniqueBanks;
     }, [initialData, amount, days]);
 
     const formatCurrency = (val) => {
