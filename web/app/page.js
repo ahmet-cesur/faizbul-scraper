@@ -1,139 +1,121 @@
-import { JWT } from 'google-auth-library';
-import { GoogleSpreadsheet } from 'google-spreadsheet';
-import { Car, CreditCard, ShieldCheck } from 'lucide-react';
-import MevduatList from './MevduatList';
+import { Car, CreditCard, Landmark, ShieldCheck, HeartPulse, Building2, ChevronRight } from 'lucide-react';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
 
-const SPREADSHEET_ID = '1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY';
-
-export const revalidate = 3600;
-
-async function getSheetData() {
-    try {
-        const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-        const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-        if (!serviceAccountEmail || !privateKey) {
-            console.warn('Missing Google Credentials, using mock data');
-            return getMockData();
+export default function HomePage() {
+    const categories = [
+        {
+            title: "Mevduat Faizleri",
+            description: "En yüksek mevduat getirisi sağlayan bankaları anlık verilerle karşılaştırın.",
+            icon: <Landmark size={32} color="var(--primary)" />,
+            link: "/mevduat",
+            status: "Aktif",
+            color: "blue"
+        },
+        {
+            title: "Araç Fiyatları",
+            description: "Sıfır ve ikinci el araç piyasasını, teknik özellikleri ve fiyat değişimlerini takip edin.",
+            icon: <Car size={32} color="#f59e0b" />,
+            link: "#",
+            status: "Çok Yakında",
+            color: "orange"
+        },
+        {
+            title: "Banka Kredileri",
+            description: "İhtiyaç, konut ve taşıt kredilerini en uygun oranlarla hesaplayın.",
+            icon: <CreditCard size={32} color="#10b981" />,
+            link: "#",
+            status: "Çok Yakında",
+            color: "emerald"
+        },
+        {
+            title: "Sigorta Teklifleri",
+            description: "Kasko, trafik sigortası ve tamamlayıcı sağlık sigortası tekliflerini kıyaslayın.",
+            icon: <HeartPulse size={32} color="#ef4444" />,
+            link: "#",
+            status: "Çok Yakında",
+            color: "red"
+        },
+        {
+            title: "Emlak Endeksi",
+            description: "Bölgesel emlak fiyatları, kira endeksleri ve yatırım fırsatlarını analiz edin.",
+            icon: <Building2 size={32} color="#8b5cf6" />,
+            link: "#",
+            status: "Çok Yakında",
+            color: "purple"
         }
-
-        const auth = new JWT({
-            email: serviceAccountEmail,
-            key: privateKey,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-        });
-
-        const doc = new GoogleSpreadsheet(SPREADSHEET_ID, auth);
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
-        const rows = await sheet.getRows();
-
-        // Mapping using column names. Note: GoogleSpreadsheet uses the first row as headers.
-        // If headers aren't perfect, we can fallback to indices.
-        return rows.map(row => {
-            // row._rawData might be available depending on version, 
-            // but let's try standard get() first with common header mappings.
-            const bank = row.get('Bank') || row.get('Banka') || row.get('bank') || 'Bilinmeyen Banka';
-            const desc = row.get('Desc') || row.get('Açıklama') || row.get('description') || '';
-            const rate = row.get('Rate') || row.get('Faiz') || row.get('rate') || '0';
-            const minAmount = row.get('MinAmount') || row.get('MinTutar') || '0';
-            const maxAmount = row.get('MaxAmount') || row.get('MaxTutar') || '999999999';
-            const minDays = row.get('MinDays') || row.get('MinGün') || '0';
-            const maxDays = row.get('MaxDays') || row.get('MaxGün') || '99999';
-            const url = row.get('URL') || row.get('url') || '#';
-            const fullJson = row.get('JSON') || row.get('json') || null;
-
-            return { bank, desc, rate, minAmount, maxAmount, minDays, maxDays, url, fullJson };
-        }).filter(item => item.bank && item.rate !== '0').slice(0, 100);
-    } catch (error) {
-        console.error('Error fetching sheet data:', error);
-        return getMockData();
-    }
-}
-
-function getMockData() {
-    return [
-        { bank: 'Akbank', desc: 'Tanışma Faizi', rate: '54.00', minAmount: '1000', maxAmount: '500000', minDays: '32', maxDays: '92', url: 'https://www.akbank.com', fullJson: null },
-        { bank: 'Garanti BBVA', desc: 'E-Vadeli', rate: '52.50', minAmount: '5000', maxAmount: '1000000', minDays: '32', maxDays: '365', url: 'https://www.garantibbva.com.tr', fullJson: null },
-        { bank: 'Ziraat Bankası', desc: 'Vadeli Mevduat', rate: '48.00', minAmount: '1000', maxAmount: '10000000', minDays: '32', maxDays: '365', url: 'https://www.ziraatbank.com.tr', fullJson: null },
     ];
-}
-
-export default async function Home() {
-    const data = await getSheetData();
 
     return (
-        <div className="animate-fade-in">
-            <header>
-                <div className="container">
-                    <nav>
-                        <div className="logo">kiyas.tr</div>
-                        <div className="nav-links">
-                            <a href="#" className="nav-link active">Mevduat</a>
-                            <a href="#" className="nav-link">Araç</a>
-                            <a href="#" className="nav-link">Kredi</a>
-                        </div>
-                        <a href="https://play.google.com/store/apps/details?id=com.acesur.faizbul" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: '#fff', borderRadius: '8px', border: '1px solid #333' }}>
-                            <svg viewBox="0 0 24 24" width="24" height="24">
-                                <path fill="#4285F4" d="M3 20.5v-17c0-.9.7-1.3 1.4-.8l10.8 9c.4.3.4.9 0 1.2l-10.8 9c-.7.5-1.4.1-1.4-.4z" />
-                                <path fill="#EA4335" d="M19.3 12L4.4 22c-.6.4-1.4 0-1.4-.8v-2.4l13.5-9c.4-.3.4-.9 0-1.2L3 3.4V1c0-.8.8-1.2 1.4-.8l14.9 10c.8.5.8 1.3 0 1.8z" />
-                                <path fill="#FBBC05" d="M15.2 12L3 20.1V3.9L15.2 12z" />
-                                <path fill="#34A853" d="M15.2 12L3 3.9c0-.9.7-1.3 1.4-.8l10.8 9c.4.3.4.9 0 1.2z" opacity="0.1" />
-                            </svg>
-                            <div style={{ textAlign: 'left', lineHeight: '1.1' }}>
-                                <div style={{ fontSize: '10px', fontWeight: 500, opacity: 0.8 }}>GET IT ON</div>
-                                <div style={{ fontSize: '14px', fontWeight: 700 }}>Google Play</div>
-                            </div>
-                        </a>
-                    </nav>
-                </div>
-            </header>
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+            <Header />
 
-            <main className="container" style={{ paddingBottom: '5rem' }}>
-                <section className="hero">
-                    <h1>Paranızın Değerini <span style={{ color: 'var(--primary)' }}>Kıyaslayın</span></h1>
-                    <p>Türkiye'deki tüm bankaların güncel mevduat faiz oranlarını anlık olarak karşılaştırın, en yüksek getiriyi bulun.</p>
+            <main className="container" style={{ flex: 1, padding: '4rem 1.5rem' }}>
+                <section style={{ textAlign: 'center', marginBottom: '5rem' }}>
+                    <h1 style={{ fontSize: '4rem', fontWeight: 900, letterSpacing: '-0.04em', background: 'linear-gradient(to right, #2563eb, #3b82f6, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '1.5rem' }}>
+                        Karar Vermeden Önce Kıyasla
+                    </h1>
+                    <p style={{ fontSize: '1.25rem', color: 'var(--secondary)', maxWidth: '700px', margin: '0 auto' }}>
+                        Türkiye'nin bağımsız karşılaştırma platformu kiyas.tr ile finansal kararlarınızı, araç alımlarınızı ve hizmet seçimlerinizi veriye dayalı yapın.
+                    </p>
                 </section>
 
-                <MevduatList initialData={data} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
+                    {categories.map((cat, idx) => (
+                        <a key={idx} href={cat.link} className="card" style={{
+                            padding: '2.5rem',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            height: '100%',
+                            cursor: cat.status === 'Aktif' ? 'pointer' : 'default',
+                            opacity: cat.status === 'Aktif' ? 1 : 0.85,
+                            transform: 'translateZ(0)',
+                            position: 'relative'
+                        }}>
+                            <div style={{ background: 'var(--accent)', width: '64px', height: '64px', borderRadius: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                                {cat.icon}
+                            </div>
 
-                <section style={{ marginTop: '5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                    <div className="card" style={{ textAlign: 'center', padding: '2.5rem' }}>
-                        <div style={{ background: 'var(--accent)', width: '64px', height: '64px', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                            <Car size={32} color="var(--primary)" />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{cat.title}</h2>
+                                {cat.status === 'Aktif' ? (
+                                    <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '99px', background: 'rgba(16, 185, 129, 0.1)' }}>AKTİF</span>
+                                ) : (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--secondary)', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '99px', background: 'var(--accent)' }}>YAKINDA</span>
+                                )}
+                            </div>
+
+                            <p style={{ color: 'var(--secondary)', fontSize: '1rem', lineHeight: '1.6', flex: 1, marginBottom: '2rem' }}>
+                                {cat.description}
+                            </p>
+
+                            <div style={{ display: 'flex', alignItems: 'center', color: cat.status === 'Aktif' ? 'var(--primary)' : 'var(--secondary)', fontWeight: 700, fontSize: '0.9rem', gap: '0.25rem' }}>
+                                {cat.status === 'Aktif' ? 'Hemen Kıyasla' : 'Haber Ver'} <ChevronRight size={18} />
+                            </div>
+                        </a>
+                    ))}
+                </div>
+
+                <section style={{ marginTop: '8rem', padding: '4rem', background: 'var(--accent)', borderRadius: '2rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '4rem', alignItems: 'center' }}>
+                    <div>
+                        <h2 style={{ fontSize: '2.5rem', fontWeight: 900, marginBottom: '1.5rem' }}>Verinin Gücü Cebinizde</h2>
+                        <p style={{ fontSize: '1.1rem', color: 'var(--secondary)', lineHeight: '1.8', marginBottom: '2rem' }}>
+                            FaizBul mobil uygulaması ile anlık bildirimler alın, kişiselleştirilmiş finansal asistanınızla en doğru yatırımı yapın. 100.000+ kullanıcıya siz de katılın.
+                        </p>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <a href="https://play.google.com/store/apps/details?id=com.acesur.faizbul" target="_blank" className="btn-primary">Google Play'den İndir</a>
                         </div>
-                        <h3>Araç Fiyatları</h3>
-                        <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', marginTop: '0.75rem' }}>Sıfır ve ikinci el araç piyasasını anlık olarak buradan takip edebileceksiniz.</p>
-                        <span style={{ display: 'inline-block', marginTop: '1.25rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Çok Yakında</span>
                     </div>
-                    <div className="card" style={{ textAlign: 'center', padding: '2.5rem' }}>
-                        <div style={{ background: 'var(--accent)', width: '64px', height: '64px', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                            <CreditCard size={32} color="var(--primary)" />
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ width: '200px', height: '200px', background: 'var(--primary)', borderRadius: '2rem', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.5rem', fontWeight: 900 }}>
+                            FaizBul
                         </div>
-                        <h3>Banka Kredileri</h3>
-                        <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', marginTop: '0.75rem' }}>İhtiyaç, konut ve taşıt kredilerini en uygun oranlarla karşılaştırın.</p>
-                        <span style={{ display: 'inline-block', marginTop: '1.25rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Çok Yakında</span>
-                    </div>
-                    <div className="card" style={{ textAlign: 'center', padding: '2.5rem' }}>
-                        <div style={{ background: 'var(--accent)', width: '64px', height: '64px', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                            <ShieldCheck size={32} color="var(--primary)" />
-                        </div>
-                        <h3>Güvenilir Veri</h3>
-                        <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', marginTop: '0.75rem' }}>Tüm veriler bankaların resmi web sitelerinden otomatik botlarımızla çekilmektedir.</p>
                     </div>
                 </section>
             </main>
 
-            <footer style={{ borderTop: '1px solid var(--border)', padding: '3rem 0', marginTop: 'auto', textAlign: 'center', color: 'var(--secondary)', fontSize: '0.875rem' }}>
-                <div className="container">
-                    <p>© 2026 kiyas.tr - Türkiye'nin Bağımsız Karşılaştırma Platformu</p>
-                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '2rem' }}>
-                        <a href="#" className="nav-link">Hakkımızda</a>
-                        <a href="#" className="nav-link">Kullanım Koşulları</a>
-                        <a href="#" className="nav-link">İletişim</a>
-                    </div>
-                </div>
-            </footer>
+            <Footer />
         </div>
     );
 }
