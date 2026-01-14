@@ -236,81 +236,116 @@ async function main() {
     }
 
     const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`\nScraping Finished. Total entries: ${allFlattenedRows.length}. Total time: ${totalDuration}s`);
+    const successCount = executionLogs.filter(l => l[2] === 'SUCCESS').length;
+    console.log(`\nScraping Finished. Success: ${successCount}/${banks.length}. Total entries: ${allFlattenedRows.length}. Total time: ${totalDuration}s`);
 
     try {
-        // Update Sheet 1 (Raw Data)
-        if (allFlattenedRows.length > 0) {
-            console.log('Updating Data Sheet (Sheet 1)...');
-            const dataSheet = doc.sheetsByIndex[0];
+        // 1. Always Update Draft Sheet (Wipe and write current run results)
+        console.log('Updating Draft Sheet...');
+        const MAIN_HEADERS = ['Date', 'Bank', 'Description', 'Rate', 'MinAmount', 'MaxAmount', 'MinDays', 'MaxDays', 'URL', 'TableJSON'];
+        const DRAFT_HEADERS = [...MAIN_HEADERS, 'Status', 'Error'];
 
-            // PRESERVE OLD DATA FOR FAILED BANKS
+        let draftSheet = doc.sheetsByTitle['Draft'];
+        if (!draftSheet) {
+            console.log('Draft sheet not found, creating one...');
+            draftSheet = await doc.addSheet({ title: 'Draft', headerValues: DRAFT_HEADERS });
+        } else {
+            // Safe Header Load for Draft
+            let draftHeadersLoaded = false;
             try {
-                const existingRows = await dataSheet.getRows();
-                // Ensure headers are loaded
-                await dataSheet.loadHeaderRow();
-                const headers = dataSheet.headerValues;
-
-                if (existingRows.length > 0 && headers.length > 0) {
-                    for (const row of existingRows) {
-                        // Bank name is at index 1 (Column B) based on app parser
-                        const bankName = (headers.length > 1) ? row.get(headers[1]) : null;
-
-                        if (bankName && !successfulBankNames.has(bankName)) {
-                            // This bank failed this run, so preserve its old data
-                            // Map values back to array order based on headers
-                            const preservedRow = headers.map(h => row.get(h));
-                            allFlattenedRows.push(preservedRow);
-                        }
-                    }
-                    console.log(`Preservation step complete. Total rows with preserved data: ${allFlattenedRows.length}`);
-                }
-            } catch (err) {
-                console.warn("Could not preserve old rows (Non-fatal):", err.message);
+                await draftSheet.loadHeaderRow();
+                draftHeadersLoaded = (draftSheet.headerValues && draftSheet.headerValues.length > 0);
+            } catch (e) {
+                console.log('Draft headers could not be loaded. Re-initializing...');
             }
 
-            // Clear existing rows to keep only 1 line per amount-days combo (latest results).
-            // If some banks fail this run, they will be removed from Sheet 1 until they succeed again.
-            // This ensures the app always shows fresh data and prevents duplicates.
-            await dataSheet.clearRows();
+            if (!draftHeadersLoaded || JSON.stringify(draftSheet.headerValues) !== JSON.stringify(DRAFT_HEADERS)) {
+                await draftSheet.setHeaderRow(DRAFT_HEADERS);
+            }
+        }
+        await draftSheet.clearRows();
 
-            await dataSheet.addRows(allFlattenedRows);
-            console.log('Successfully updated Sheet 1 with latest data!');
+        const draftRows = [];
+        allFlattenedRows.forEach(r => draftRows.push([...r, 'SUCCESS', '']));
+        executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').forEach(l => {
+            draftRows.push([l[0], l[1], 'FAILED_RUN', 0, 0, 0, 0, 0, '', '', l[2], l[5]]);
+        });
+
+        if (draftRows.length > 0) {
+            await draftSheet.addRows(draftRows);
+            console.log('Successfully updated Draft sheet.');
         }
 
-        // Update Sheet 2 (Logs)
-        console.log('Updating Log Sheet (Sheet 2)...');
-        let logSheet = doc.sheetsByTitle['Logs'];
-        if (!logSheet) {
-            logSheet = await doc.addSheet({ title: 'Logs', headerValues: ['Date', 'Bank', 'Status', 'Rows', 'Duration', 'Error'] });
+        // 2. Perform Selective Update on Sheet 1 (Main Data)
+        console.log('Performing selective update on Sheet 1...');
+        const dataSheet = doc.sheetsByIndex[0];
+
+        // Ensure Sheet 1 has correct headers at all times
+        let headersLoaded = false;
+        try {
+            await dataSheet.loadHeaderRow();
+            headersLoaded = (dataSheet.headerValues && dataSheet.headerValues.length > 0);
+        } catch (e) {
+            console.log('Sheet 1 headers could not be loaded (Sheet might be empty).');
         }
-        await logSheet.addRows(executionLogs);
 
-        // Add a summary row for this run
-        const successCount = executionLogs.filter(l => l[2] === 'SUCCESS').length;
-        await logSheet.addRow([
-            executionDate,
-            '--- RUN SUMMARY ---',
-            `${successCount}/${banks.length} Success`,
-            allFlattenedRows.length,
-            `${totalDuration}s`,
-            `Build: FaizBul Scraper Engine v2.0`
-        ]);
+        if (!headersLoaded || dataSheet.headerValues[1] !== 'Bank') {
+            console.log('Setting/Fixing Sheet 1 headers...');
+            await dataSheet.setHeaderRow(MAIN_HEADERS);
+        }
 
-        console.log('Successfully updated Sheet 2 logs!');
+        let existingRows = [];
+        try {
+            existingRows = await dataSheet.getRows();
+        } catch (e) {
+            console.log('No existing rows found in Sheet 1.');
+        }
+        const finalSheet1Rows = [];
+
+        // Add successful newly scraped rows
+        allFlattenedRows.forEach(r => finalSheet1Rows.push(r));
+
+        // Preserve old rows for banks that failed this run
+        if (existingRows.length > 0) {
+            for (const row of existingRows) {
+                const bankNameInRow = row.get('Bank') || row.get('bank');
+                if (bankNameInRow && !successfulBankNames.has(bankNameInRow)) {
+                    // Map values back to array order based on MAIN_HEADERS
+                    const preservedRow = MAIN_HEADERS.map(h => row.get(h));
+                    finalSheet1Rows.push(preservedRow);
+                }
+            }
+        }
+
+        // Clear and update Sheet 1 with the merged data
+        await dataSheet.clearRows();
+        if (finalSheet1Rows.length > 0) {
+            await dataSheet.addRows(finalSheet1Rows);
+            console.log('Sheet 1 updated (Successful banks overwritten, Failed banks preserved).');
+        }
+
+        // 3. Optional: Delete Logs sheet if it exists (Cleanup)
+        try {
+            const logSheet = doc.sheetsByTitle['Logs'];
+            if (logSheet) {
+                console.log('Deleting legacy Logs sheet for cleanup...');
+                await logSheet.delete();
+            }
+        } catch (e) {
+            console.log('Logs sheet already deleted or inaccessible.');
+        }
 
         if (successCount < banks.length) {
             const failedBanks = executionLogs.filter(l => l[2] !== 'SUCCESS' && l[1] !== '--- RUN SUMMARY ---').map(l => l[1]);
             const errorMsg = `Scraper failed for: ${failedBanks.join(', ')}`;
-
             if (process.env.GITHUB_ACTIONS) {
                 console.log(`::error::${errorMsg}`);
             }
             throw new Error(errorMsg);
         }
     } catch (e) {
-        console.error('Scraper Error:', e.message);
-        throw e; // Re-throw to ensure the process exits with code 1
+        console.error('Finalization Error:', e.message);
+        throw e;
     }
 
     await browser.close();

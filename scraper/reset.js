@@ -27,14 +27,12 @@ async function reset() {
     await dataSheet.clearRows();
     console.log('Data Sheet cleared.');
 
-    // 2. Reset Log Sheet
-    console.log('Resetting Log Sheet...');
-    const logSheet = doc.sheetsByTitle['Logs'];
-    if (logSheet) {
-        await logSheet.clearRows();
-        console.log('Log Sheet cleared.');
-    } else {
-        console.log('Log Sheet not found, skipping.');
+    // 2. Reset Draft Sheet
+    console.log('Resetting Draft Sheet...');
+    const draftSheet = doc.sheetsByTitle['Draft'];
+    if (draftSheet) {
+        await draftSheet.clearRows();
+        console.log('Draft Sheet cleared.');
     }
 
     console.log('--- Reset Completed Successfully ---');
