@@ -4,31 +4,55 @@ module.exports = {
     desc: "Yeni Param (Hoş Geldin)",
     script: `(function() {
         try {
-            var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+            var attempts = 0;
             function extractYapikrediTable() {
-                var tables = document.querySelectorAll('table');
-                for (var t = 0; t < tables.length; t++) {
-                    var table = tables[t]; if (table.rows.length < 3) continue;
-                    var headers = []; var headerCells = table.rows[0].cells;
-                    for (var i = 1; i < headerCells.length; i++) {
-                        headers.push({ label: headerCells[i].innerText.trim(), minAmount: 1000, maxAmount: 999999999 });
-                    }
-                    var tableRows = [];
-                    for (var r = 1; r < table.rows.length; r++) {
-                        var cells = table.rows[r].cells; if (cells.length < 2) continue;
-                        var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
-                        var rowRates = [];
-                        for (var c = 1; c < cells.length; c++) {
-                            var rate = smartParseNumber(cells[c].innerText);
-                            rowRates.push(isNaN(rate) ? null : rate);
+                var table = document.querySelector('#tableModal #mevduatTable');
+                if (!table) {
+                   // Fallback to searching all tables if ID is missing
+                   var tables = document.querySelectorAll('table');
+                   for (var i=0; i<tables.length; i++) {
+                       if (tables[i].innerText.includes('Vade Süresi') && tables[i].rows.length > 5) {
+                           table = tables[i]; break;
+                       }
+                   }
+                }
+                
+                if (!table || table.rows.length < 3) return false;
+                
+                var headers = []; var headerCells = table.rows[0].cells;
+                for (var i = 1; i < headerCells.length; i++) {
+                    headers.push({ label: headerCells[i].innerText.trim(), minAmount: 1000, maxAmount: 999999999 });
+                }
+                
+                var tableRows = [];
+                for (var r = 1; r < table.rows.length; r++) {
+                    var cells = table.rows[r].cells; if (cells.length < 2) continue;
+                    var durTxt = cells[0].innerText.trim(); 
+                    var durParsed = parseDuration(durTxt);
+                    if (!durParsed) continue;
+
+                    var rowRates = [];
+                    for (var c = 1; c < cells.length; c++) {
+                        var rate = smartParseNumber(cells[c].innerText);
+                        // Validation inside the script to avoid polluting the main log with 121% errors
+                        if (isNaN(rate) || rate > 100) {
+                            rowRates.push(null);
+                        } else {
+                            rowRates.push(rate);
                         }
-                        tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
                     }
-                    Android.sendRateWithTable(tableRows[0].rates[0], 'Yeni Param (Hoş Geldin)', 'Yapı Kredi', JSON.stringify({headers: headers, rows: tableRows}));
+                    if (rowRates.some(r => r !== null)) {
+                        tableRows.push({ label: durTxt, minDays: durParsed.min, maxDays: durParsed.max, rates: rowRates });
+                    }
+                }
+                
+                if (tableRows.length > 0) {
+                    Android.sendRateWithTable(tableRows[0].rates.find(r => r > 0) || 0, 'Yeni Param (Hoş Geldin)', 'Yapı Kredi', JSON.stringify({headers: headers, rows: tableRows}));
                     return true;
                 }
                 return false;
             }
+
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
                 if (extractYapikrediTable()) clearInterval(interval);

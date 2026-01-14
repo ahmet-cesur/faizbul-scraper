@@ -179,8 +179,6 @@ async function main() {
             errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
-                // Track success using composite key of name and description
-                successfulBankNames.add(`${bank.name}|${bank.desc}`);
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
@@ -205,6 +203,9 @@ async function main() {
                     errorMessage = `Back-end validation failed: Found abnormal rate (${invalidRateValue})`;
                     console.warn(`Validation Error for ${bank.name}: Found rate ${invalidRateValue} > 100. Discarding all results.`);
                 } else {
+                    // Track success ONLY if validation passed
+                    successfulBankNames.add(`${bank.name.trim().toLowerCase()}|${result.desc.trim().toLowerCase()}`);
+
                     table.rows.forEach(row => {
                         row.rates.forEach((rate, colIdx) => {
                             if (rate !== null && rate > 0) {
@@ -325,20 +326,24 @@ async function main() {
 
         // Preserve old rows for banks that failed this run
         if (existingRows.length > 0) {
+            console.log(`Checking ${existingRows.length} existing rows for preservation...`);
+            let preservedCount = 0;
             for (const row of existingRows) {
-                const bName = row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka');
-                const bDesc = row.get('Description') || row.get('Desc') || row.get('Açıklama') || row.get('description');
+                const bName = (row.get('Bank') || row.get('bank') || row.get('Banka') || row.get('banka') || '').toString().trim();
+                const bDesc = (row.get('Description') || row.get('Desc') || row.get('Açıklama') || row.get('description') || '').toString().trim();
 
-                if (bName && !successfulBankNames.has(`${bName}|${bDesc}`)) {
+                const key = `${bName.toLowerCase()}|${bDesc.toLowerCase()}`;
+                if (bName && !successfulBankNames.has(key)) {
                     // Map values back to array order based on MAIN_HEADERS
-                    // Check for both original and lowercase header names to be robust
                     const preservedRow = MAIN_HEADERS.map(h => {
                         const val = row.get(h) || row.get(h.toLowerCase());
                         return val !== undefined && val !== null ? val : '';
                     });
                     finalSheet1Rows.push(preservedRow);
+                    preservedCount++;
                 }
             }
+            console.log(`Preserved ${preservedCount} old entries.`);
         }
 
         // Clear and update Sheet 1 with the merged data

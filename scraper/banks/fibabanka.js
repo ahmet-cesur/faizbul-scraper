@@ -109,25 +109,25 @@ module.exports = {
                 
                 if (step === 0) {
                     if (btn) { 
-                        Android.log('Found accordion header: ' + btn.innerText + '. Clicking...');
+                        Android.log('Found accordion header: ' + btn.innerText + '. Attempting click...');
+                        // Use a slightly more robust click check to avoid context reset
                         btn.click();
-                        // Also try clicking parent or specific toggle if click didn't work
-                        var parent = btn.parentElement;
-                        if (parent && parent.classList.contains('accordion__header')) parent.click();
-                        
                         step = 1; 
                         attempts = 0;
-                    } else { 
-                        if (attempts > 5 && attempts % 5 === 0) Android.log('Accordion with ' + targetTitle + ' not found in DOM yet.');
+                    } else if (attempts > 5 && attempts % 5 === 0) {
+                        Android.log('Accordion with ' + targetTitle + ' not found yet.');
                     }
                 } else {
                     if (extractFibabankaTable()) {
                         Android.log('Fibabanka table extracted successfully.');
                         clearInterval(interval);
-                    } else if (attempts % 5 === 0) {
-                        Android.log('Waiting for table to become visible/populated... (Attempt ' + attempts + ')');
-                        // Try clicking again in case it didn't open
-                        if (btn) btn.click();
+                    } else if (attempts % 10 === 0) {
+                        // Very conservative re-click if table not found despite being in step 1
+                        Android.log('Still waiting for table... (Attempt ' + attempts + ')');
+                        if (btn) {
+                             Android.log('Re-clicking just in case...');
+                             btn.click();
+                        }
                     }
                 }
                 
