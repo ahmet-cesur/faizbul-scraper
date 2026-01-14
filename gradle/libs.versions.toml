@@ -24,9 +24,9 @@ room = "2.6.1"
 ksp = "2.0.21-1.0.26"
 ump = "3.1.0"
 splashscreen = "1.0.1"
-firebaseBom = "33.7.0"
-googleServices = "4.4.2"
-firebaseCrashlyticsPlugin = "3.0.2"
+firebaseBom = "34.7.0"
+googleServices = "4.4.4"
+firebaseCrashlyticsPlugin = "3.0.6"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
