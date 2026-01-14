@@ -103,24 +103,38 @@ module.exports = {
             }
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
+                
+                var targetTitle = 'e-Mevduat';
+                var btn = Array.from(document.querySelectorAll('h2.accordion__title, button, .accordion__header, a')).find(h => h.innerText.includes(targetTitle));
+                
                 if (step === 0) {
-                    var btn = Array.from(document.querySelectorAll('h2.accordion__title, button')).find(h => h.innerText.includes('e-Mevduat'));
                     if (btn) { 
+                        Android.log('Found accordion header: ' + btn.innerText + '. Clicking...');
                         btn.click();
-                        // Try native click just in case 
-                        if (btn.onclick) btn.onclick();
+                        // Also try clicking parent or specific toggle if click didn't work
+                        var parent = btn.parentElement;
+                        if (parent && parent.classList.contains('accordion__header')) parent.click();
+                        
                         step = 1; 
+                        attempts = 0;
                     } else { 
-                        if (attempts > 5 && attempts % 10 === 0) logError('Accordion with e-Mevduat not found');
-                        step = 1; 
-                    } // Try extracting anyway if button not found (might be already open)
+                        if (attempts > 5 && attempts % 5 === 0) Android.log('Accordion with ' + targetTitle + ' not found in DOM yet.');
+                    }
                 } else {
-                    if (extractFibabankaTable()) clearInterval(interval);
+                    if (extractFibabankaTable()) {
+                        Android.log('Fibabanka table extracted successfully.');
+                        clearInterval(interval);
+                    } else if (attempts % 5 === 0) {
+                        Android.log('Waiting for table to become visible/populated... (Attempt ' + attempts + ')');
+                        // Try clicking again in case it didn't open
+                        if (btn) btn.click();
+                    }
                 }
-                if (++attempts > 40) { 
+                
+                if (++attempts > 60) { 
                     clearInterval(interval); 
-                    logError('Timeout (40 attempts)');
-                    Android.sendError('NO_MATCH'); 
+                    Android.log('Fibabanka timeout after 60s. Last step: ' + step);
+                    Android.sendError('NO_MATCH - Timeout reaching e-Mevduat table'); 
                 }
             }, 1000);
         } catch(e) { 
