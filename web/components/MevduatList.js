@@ -159,36 +159,74 @@ export default function MevduatList({ initialData }) {
 
             {selectedTable && (
                 <div className="modal-overlay" onClick={() => setSelectedTable(null)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <button className="close-btn" onClick={() => setSelectedTable(null)}><X /></button>
-                        <h2 style={{ marginBottom: '1.5rem' }}>Banka Faiz Tablosu</h2>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155' }}>
+                        <button className="close-btn" onClick={() => setSelectedTable(null)} style={{ color: '#94a3b8' }}><X /></button>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{selectedTable.bankName || 'Faiz Tablosu'}</h2>
+                            <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                                Tutar: {new Intl.NumberFormat('tr-TR').format(amount)} TL • {days} Gün
+                            </p>
+                        </div>
+
                         <div className="table-container">
-                            <table>
+                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th>Vade / Tutar</th>
+                                        <th style={{ background: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #334155', textAlign: 'left', padding: '1rem' }}>Vade</th>
                                         {selectedTable.headers.map((h, i) => (
-                                            <th key={i}>{h.minAmount.toLocaleString()} TL +</th>
+                                            <th key={i} style={{ background: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #334155', textAlign: 'center', padding: '1rem', whiteSpace: 'nowrap' }}>
+                                                {h.label || h.minAmount.toLocaleString() + ' TL +'}
+                                            </th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {selectedTable.rows.map((row, i) => (
-                                        <tr key={i}>
-                                            <td style={{ fontWeight: 600 }}>{row.minDays}-{row.maxDays} Gün</td>
-                                            {row.rates.map((r, j) => (
-                                                <td key={j}>{r ? `%${r}` : '-'}</td>
-                                            ))}
-                                        </tr>
-                                    ))}
+                                    {selectedTable.rows.map((row, i) => {
+                                        const isDayMatch = days >= row.minDays && days <= row.maxDays;
+                                        return (
+                                            <tr key={i} style={{ background: isDayMatch ? 'rgba(16, 185, 129, 0.1)' : 'transparent' }}>
+                                                <td style={{
+                                                    fontWeight: 600,
+                                                    padding: '1rem',
+                                                    borderBottom: '1px solid #334155',
+                                                    color: isDayMatch ? '#34d399' : '#e2e8f0'
+                                                }}>
+                                                    {row.label || `${row.minDays}-${row.maxDays} Gün`}
+                                                </td>
+                                                {row.rates.map((r, j) => {
+                                                    // Check if this column matches the amount
+                                                    const h = selectedTable.headers[j];
+                                                    const min = parseFloat(h.minAmount) || 0;
+                                                    const max = parseFloat(h.maxAmount) || 999999999;
+                                                    const isAmountMatch = amount >= min && amount <= max;
+                                                    const isCellActive = isDayMatch && isAmountMatch;
+
+                                                    return (
+                                                        <td key={j} style={{
+                                                            textAlign: 'center',
+                                                            padding: '1rem',
+                                                            borderBottom: '1px solid #334155',
+                                                            fontWeight: isCellActive ? 800 : 500,
+                                                            color: isCellActive ? '#fff' : '#cbd5e1',
+                                                            background: isCellActive ? '#10b981' : 'transparent',
+                                                            borderRadius: isCellActive ? '8px' : '0'
+                                                        }}>
+                                                            {r ? `%${new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2 }).format(r)}` : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
-                        <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--secondary)' }}>* Veriler bilgilendirme amaçlıdır, banka şubelerinde farklılık gösterebilir.</p>
+                        <p style={{ marginTop: '1.5rem', fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
+                            * Bu veriler bilgilendirme amaçlıdır. Nihai faiz oranı banka tarafından belirlenir.
+                        </p>
                     </div>
                 </div>
-            )
-            }
+            )}
         </>
     );
 }
