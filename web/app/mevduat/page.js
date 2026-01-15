@@ -32,7 +32,18 @@ async function getSheetData() {
 
         const doc = new GoogleSpreadsheet(SPREADSHEET_ID, auth);
         await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+
+        // Match scraper's logic for selecting the data sheet
+        let sheet = doc.sheetsByTitle['Sheet 1'] || doc.sheetsByTitle['Sheet1'] || doc.sheetsByTitle['Mevduat'] || doc.sheetsByTitle['mewduat'];
+        if (!sheet && doc.sheetCount > 0) {
+            sheet = doc.sheetsByIndex[0];
+        }
+
+        if (!sheet) {
+            console.error('No sheet found');
+            return getMockData();
+        }
+
         const rows = await sheet.getRows();
 
         return rows.map(row => {
@@ -56,7 +67,12 @@ async function getSheetData() {
             const fullJson = getVal(['TableJSON', 'tablejson', 'JSON', 'json']) || null;
 
             return { bank, desc, rate, minAmount, maxAmount, minDays, maxDays, url, fullJson };
-        }).filter(item => item.bank && item.bank !== 'Bilinmeyen Banka' && item.rate !== '0').slice(0, 100);
+        }).filter(item => {
+            const hasBank = !!item.bank && item.bank !== 'Bilinmeyen Banka';
+            const rateStr = item.rate ? item.rate.toString() : '0';
+            const hasRate = rateStr !== '0' && rateStr !== '0.00' && rateStr !== '0,00';
+            return hasBank && hasRate;
+        }).slice(0, 1000);
     } catch (error) {
         console.error('Error fetching sheet data:', error);
         return getMockData();

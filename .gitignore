@@ -13,7 +13,14 @@
 .externalNativeBuild
 .cxx
 local.properties
-node_modules
+# Environment variables
+.env
+scraper/.env
+web/.env
+
+# Node
+node_modules/
+package-lock.json
 
 # Google Services
 google-services.json

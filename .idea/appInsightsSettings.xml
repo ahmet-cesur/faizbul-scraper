@@ -23,10 +23,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.acesur.faizbul" />
+                  <option name="mobileSdkAppId" value="1:444121912380:android:afa645fb76413f09141f39" />
+                  <option name="projectId" value="faizbulfirebase" />
+                  <option name="projectNumber" value="444121912380" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

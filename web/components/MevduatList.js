@@ -32,63 +32,90 @@ export default function MevduatList({ initialData }) {
         };
     };
 
-    const parseTurkishNumber = (val) => {
+    const universalParseNumber = (val) => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
-        let str = val.toString().trim().replace(/\s/g, '');
+        let str = val.toString().trim().replace(/\s/g, '').replace(/%/g, '').replace(/TL/gi, '');
         if (!str) return 0;
 
-        if (str.includes(',')) {
-            // Turkish format: dots are thousands, comma is decimal
-            return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+        // Count occurrences of dots and commas
+        const dots = (str.match(/\./g) || []).length;
+        const commas = (str.match(/,/g) || []).length;
+
+        // Case: Constant English format with commas as thousands (e.g., 100,000.00)
+        // or Turkish format with dots as thousands (e.g., 100.000,00)
+        if (dots > 0 && commas > 0) {
+            const lastDot = str.lastIndexOf('.');
+            const lastComma = str.lastIndexOf(',');
+            if (lastDot > lastComma) {
+                // English: 1,234.56
+                return parseFloat(str.replace(/,/g, '')) || 0;
+            } else {
+                // Turkish: 1.234,56
+                return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+            }
         }
 
-        // If there's no comma, check if the dot is a thousands separator
-        // Heuristic: If there's a dot and it's followed by exactly 3 digits (e.g., 100.000)
-        // AND it's not a common rate format (rates are usually one or two decimals)
-        const parts = str.split('.');
-        if (parts.length > 1) {
-            const lastPart = parts[parts.length - 1];
-            if (lastPart.length === 3) {
-                // Highly likely a thousands separator (e.g. 100.000, 1.000)
+        // Case: Only one type of separator
+        if (commas > 0 && dots === 0) {
+            // Check if it's a decimal comma (Turkish 45,50) or thousand comma (English 100,000)
+            const parts = str.split(',');
+            if (parts[parts.length - 1].length === 2 || parts[parts.length - 1].length === 1) {
+                return parseFloat(str.replace(',', '.')) || 0;
+            }
+            return parseFloat(str.replace(/,/g, '')) || 0;
+        }
+
+        if (dots > 0 && commas === 0) {
+            // Check if it's a decimal dot (English 45.50) or thousand dot (Turkish 100.000)
+            const parts = str.split('.');
+            if (parts[parts.length - 1].length === 3) {
                 return parseFloat(str.replace(/\./g, '')) || 0;
             }
+            return parseFloat(str) || 0;
         }
 
         return parseFloat(str) || 0;
     };
 
     const filteredAndSortedData = useMemo(() => {
-        const results = initialData
-            .filter(item => {
-                const minAmt = parseTurkishNumber(item.minAmount);
-                const rawMax = parseTurkishNumber(item.maxAmount);
-                const maxAmt = rawMax === 0 ? 999999999 : rawMax;
+        if (!initialData) return [];
 
+        const results = initialData
+            .map(item => {
+                const rate = universalParseNumber(item.rate);
+                const minAmt = universalParseNumber(item.minAmount);
+                const maxAmt = universalParseNumber(item.maxAmount) || 999999999999;
                 const minD = parseInt(item.minDays) || 0;
                 const maxD = parseInt(item.maxDays) || 99999;
 
-                return amount >= minAmt && amount <= maxAmt && days >= minD && days <= maxD;
+                // Check if current search matches this row's bounds
+                const matches = amount >= minAmt && amount <= maxAmt && days >= minD && days <= maxD;
+
+                return {
+                    ...item,
+                    parsedRate: rate,
+                    matches,
+                    results: calculateRates(rate, amount, days)
+                };
             })
-            .map(item => ({
-                ...item,
-                results: calculateRates(parseTurkishNumber(item.rate), amount, days)
-            }))
+            .filter(item => item.matches)
             .sort((a, b) => b.results.net - a.results.net);
 
-        // Deduplicate: Keep only the best offer per bank
-        const uniqueBanks = [];
-        const seenBanks = new Set();
+        // Deduplication: Only show unique bank+description combinations or best rate per bank
+        // To increase visible banks, we'll favor showing more, but keep it one per bank per offer type
+        const seen = new Set();
+        const finalResults = [];
 
         for (const item of results) {
-            const normName = item.bank.toLowerCase().trim();
-            if (!seenBanks.has(normName)) {
-                seenBanks.add(normName);
-                uniqueBanks.push(item);
+            const key = `${item.bank.toLowerCase().trim()}|${item.parsedRate}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                finalResults.push(item);
             }
         }
 
-        return uniqueBanks;
+        return finalResults;
     }, [initialData, amount, days]);
 
     const formatCurrency = (val) => {
@@ -97,36 +124,35 @@ export default function MevduatList({ initialData }) {
 
     return (
         <>
-            <section className="card" style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h2 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
-                        <TrendingUp size={18} color="var(--primary)" />
-                        Faiz Hesaplama
-                    </h2>
-                    <span className="status-tag" style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem' }}>Canlı Veri</span>
-                </div>
-
-                <div className="calculator-grid" style={{ gap: '0.75rem' }}>
-                    <div className="input-group">
-                        <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>Yatırılacak Tutar</label>
-                        <div className="input-wrapper">
+            <section className="card" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '0.75rem' }}>
+                <div className="calculator-grid" style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'auto 1fr 1fr',
+                    gap: '1rem',
+                    alignItems: 'center'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <TrendingUp size={16} color="var(--primary)" />
+                        <h2 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>Hesapla</h2>
+                    </div>
+                    <div className="input-group" style={{ margin: 0 }}>
+                        <div className="input-wrapper" style={{ height: '36px' }}>
                             <input
                                 type="number"
                                 className="input-field"
-                                style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem' }}
+                                style={{ padding: '0 0.75rem', fontSize: '0.9rem' }}
                                 value={amount}
                                 onChange={(e) => setAmount(Number(e.target.value))}
                             />
                             <span className="input-suffix" style={{ fontSize: '0.8rem' }}>TL</span>
                         </div>
                     </div>
-                    <div className="input-group">
-                        <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: '0.2rem' }}>Vade Süresi</label>
-                        <div className="input-wrapper">
+                    <div className="input-group" style={{ margin: 0 }}>
+                        <div className="input-wrapper" style={{ height: '36px' }}>
                             <input
                                 type="number"
                                 className="input-field"
-                                style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem' }}
+                                style={{ padding: '0 0.75rem', fontSize: '0.9rem' }}
                                 value={days}
                                 onChange={(e) => setDays(Number(e.target.value))}
                             />
@@ -136,88 +162,56 @@ export default function MevduatList({ initialData }) {
                 </div>
             </section>
 
-            <div className="results-list" style={{ gap: '0.75rem' }}>
+            <div className="results-list" style={{ gap: '0.5rem' }}>
                 {filteredAndSortedData.length > 0 ? (
                     filteredAndSortedData.map((item, index) => (
-                        <div className="result-card fade-in" key={index} style={{ padding: '0.75rem 1rem', borderRadius: '1rem', border: '1px solid var(--border)' }}>
-                            <div className="card-header" style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div className="bank-logo-circle" style={{ width: '32px', height: '32px', minWidth: '32px' }}>
-                                        <Landmark size={18} color="var(--primary)" />
+                        <div className="result-card fade-in" key={index} style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
+                            <div className="result-row-grid">
+                                {/* Bank Info */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                                    <div className="bank-logo-circle" style={{ width: '28px', height: '28px', minWidth: '28px', background: 'var(--accent)' }}>
+                                        <Landmark size={14} color="var(--primary)" />
                                     </div>
-                                    <div>
-                                        <div className="bank-name" style={{ fontSize: '0.95rem', fontWeight: 700 }}>{item.bank}</div>
-                                        {item.desc && <div className="campaign-tag" style={{ fontSize: '0.6rem', padding: '0.05rem 0.3rem', marginTop: '1px' }}>{item.desc}</div>}
-                                    </div>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                        {formatCurrency(item.results.net)}
-                                    </div>
-                                    <div style={{ fontSize: '0.65rem', color: 'var(--secondary)', marginTop: '-2px' }}>Net Kazanç</div>
-                                </div>
-                            </div>
-
-                            <div className="card-body" style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '0.5rem 0.75rem',
-                                background: 'rgba(255,255,255,0.03)',
-                                borderRadius: '0.5rem',
-                                marginBottom: '0.5rem'
-                            }}>
-                                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.6rem', color: 'var(--secondary)' }}>Yıllık Faiz</span>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>%{item.rate}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.6rem', color: 'var(--secondary)' }}>Brüt Faiz</span>
-                                        <span style={{ fontSize: '0.85rem' }}>{formatCurrency(item.results.gross)}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.6rem', color: 'var(--secondary)' }}>Vade Sonu</span>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatCurrency(item.results.total)}</span>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div className="bank-name" style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.bank}</div>
+                                        {item.desc && <div style={{ fontSize: '0.6rem', color: 'var(--secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.desc}</div>}
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {/* Rate */}
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>%{item.rate}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--secondary)', textTransform: 'uppercase' }}>Yıllık Faiz</div>
+                                </div>
+
+                                {/* Net */}
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '1rem', fontWeight: 800, color: '#22c55e' }}>{formatCurrency(item.results.net)}</div>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--secondary)', textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1 }}>
+                                        <span style={{ fontWeight: 700 }}>Net Kazanç</span>
+                                        <span style={{ fontSize: '0.55rem', opacity: 0.8, textTransform: 'none', color: 'var(--secondary)' }}>
+                                            Stopaj: {formatCurrency(item.results.stopaj)} (%{item.results.stopajPercent})
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Vade Sonu (Toplam) */}
+                                <div style={{ textAlign: 'center' }} className="hide-mobile">
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{formatCurrency(item.results.total)}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--secondary)', textTransform: 'uppercase' }}>Toplam</div>
+                                </div>
+
+                                {/* Actions */}
+                                <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
                                     {item.fullJson && (
                                         <button
                                             onClick={() => setSelectedTable(JSON.parse(item.fullJson))}
-                                            style={{
-                                                padding: '0.4rem 0.6rem',
-                                                background: 'transparent',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '6px',
-                                                color: 'var(--foreground)',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.3rem',
-                                                fontSize: '0.75rem'
-                                            }}
+                                            style={{ padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                                         >
-                                            <Table size={14} />
+                                            <Table size={14} color="var(--foreground)" />
                                         </button>
                                     )}
-                                    <a
-                                        href={item.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                            padding: '0.4rem 1rem',
-                                            background: 'var(--primary)',
-                                            color: '#fff',
-                                            borderRadius: '6px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 700,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.3rem'
-                                        }}
-                                    >
+                                    <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ padding: '0.4rem 0.8rem', background: 'var(--primary)', color: '#fff', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700 }}>
                                         Başvur <ChevronRight size={14} />
                                     </a>
                                 </div>
@@ -225,11 +219,11 @@ export default function MevduatList({ initialData }) {
                         </div>
                     ))
                 ) : (
-                    <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-                        <p style={{ color: 'var(--secondary)', fontSize: '0.9rem' }}>Kriterlere uygun sonuç bulunamadı.</p>
+                    <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '0.85rem' }}>Kriterlere uygun sonuç bulunamadı.</p>
                     </div>
                 )}
-            </div >
+            </div>
 
             {selectedTable && (
                 <div className="modal-overlay" onClick={() => setSelectedTable(null)}>
@@ -270,8 +264,8 @@ export default function MevduatList({ initialData }) {
                                                 </td>
                                                 {row.rates.map((r, j) => {
                                                     const h = selectedTable.headers[j];
-                                                    const min = parseFloat(h.minAmount) || 0;
-                                                    const max = parseFloat(h.maxAmount) || 999999999;
+                                                    const min = parseTurkishNumber(h.minAmount);
+                                                    const max = parseTurkishNumber(h.maxAmount) || 999999999;
                                                     const isAmountMatch = amount >= min && amount <= max;
                                                     const isCellActive = isDayMatch && isAmountMatch;
 

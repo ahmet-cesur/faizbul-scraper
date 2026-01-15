@@ -18,12 +18,12 @@ module.exports = {
                 // Hardcoded ranges as FooTable often hides headers
                 if (headerCells.length <= 1 || true) { // Force use of ranges as we know them
                    var ykRanges = [
-                       { min: 1000, max: 24999 },
-                       { min: 25000, max: 99999 },
-                       { min: 100000, max: 249999 },
-                       { min: 250000, max: 499999 },
-                       { min: 500000, max: 999999 },
-                       { min: 1000000, max: 2999999 },
+                       { min: 1000, max: 24999.99 },
+                       { min: 25000, max: 99999.99 },
+                       { min: 100000, max: 249999.99 },
+                       { min: 250000, max: 499999.99 },
+                       { min: 500000, max: 999999.99 },
+                       { min: 1000000, max: 2999999.99 },
                        { min: 3000000, max: 15000000 }
                    ];
                    

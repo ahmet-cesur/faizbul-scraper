@@ -35,29 +35,38 @@ async function main() {
                              .replace(/\\s/g, '').trim();
             if (!cleaned) return NaN;
             
+            // Heuristic: identify decimal separator
+            // If there's only one separator and it's 1-2 digits from the end, it's likely a decimal.
+            // If there are multiple separators, the last one is likely the decimal if it's 1-2 digits from the end.
+            
             var lastDot = cleaned.lastIndexOf('.');
             var lastComma = cleaned.lastIndexOf(',');
-            var decimalSep = null, thousandSep = null;
+            var normalized = cleaned;
             
             if (lastDot > lastComma) {
+                // Potential English (1,234.56) or Turkish with thousands dot (1.234)
                 var afterDot = cleaned.substring(lastDot + 1);
-                if (afterDot.length === 2 || afterDot.length === 1) { decimalSep = '.'; thousandSep = ','; }
-                else { thousandSep = '.'; decimalSep = ','; }
+                if (afterDot.length === 2 || afterDot.length === 1) {
+                    // Decimal dot: 1234.56
+                    normalized = cleaned.replace(/,/g, '');
+                } else {
+                    // Thousand dot: 1.234
+                    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+                }
             } else if (lastComma > lastDot) {
+                // Potential Turkish (1.234,56)
                 var afterComma = cleaned.substring(lastComma + 1);
-                if (afterComma.length === 2 || afterComma.length === 1) { decimalSep = ','; thousandSep = '.'; }
-                else { thousandSep = ','; decimalSep = '.'; }
-            } else if (lastDot > -1) {
-                var afterDot = cleaned.substring(lastDot + 1);
-                if (afterDot.length === 2 || afterDot.length === 1) decimalSep = '.'; else thousandSep = '.';
-            } else if (lastComma > -1) {
-                var afterComma = cleaned.substring(lastComma + 1);
-                if (afterComma.length === 2 || afterComma.length === 1) decimalSep = ','; else thousandSep = ',';
+                if (afterComma.length === 2 || afterComma.length === 1) {
+                    // Decimal comma: 1234,56
+                    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+                } else {
+                    // Thousand comma: 1,234 (English style)
+                    normalized = cleaned.replace(/,/g, '');
+                }
+            } else {
+                // No mixed separators, just one or none
+                normalized = cleaned.replace(',', '.');
             }
-            
-            var normalized = cleaned;
-            if (thousandSep) normalized = normalized.split(thousandSep).join('');
-            if (decimalSep && decimalSep !== '.') normalized = normalized.replace(decimalSep, '.');
             
             return parseFloat(normalized);
         };
@@ -179,15 +188,28 @@ async function main() {
                 const table = JSON.parse(result.json);
                 const bankRowsBefore = allFlattenedRows.length;
 
-                let hasInvalidRate = (result.rate > 100);
+                // Validation and formatting helper
+                const formatForSheet = (val) => {
+                    if (val === null || val === undefined || val === '') return 0;
+                    if (typeof val === 'number') return val;
+                    // If it's a string, use our smart parser logic to get a clean number
+                    const cleaned = val.toString().replace(/\s/g, '');
+                    // For sheet writing, we want a pure number or a string like "123456.78"
+                    // But sending as actual JS number is best for Sheets API
+                    const num = parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
+                    return isNaN(num) ? 0 : num;
+                };
+
+                let hasInvalidRate = (formatForSheet(result.rate) > 100);
                 let invalidRateValue = result.rate > 100 ? result.rate : null;
 
                 if (!hasInvalidRate && table.rows) {
                     for (const row of table.rows) {
                         for (const rate of row.rates) {
-                            if (rate !== null && rate > 100) {
+                            const pRate = formatForSheet(rate);
+                            if (pRate > 100) {
                                 hasInvalidRate = true;
-                                invalidRateValue = rate;
+                                invalidRateValue = pRate;
                                 break;
                             }
                         }
@@ -202,18 +224,25 @@ async function main() {
                 } else if (table.rows) {
                     table.rows.forEach(row => {
                         row.rates.forEach((rate, colIdx) => {
-                            if (rate !== null && rate > 0) {
+                            const pRate = formatForSheet(rate);
+                            if (pRate > 0) {
                                 const header = table.headers && table.headers[colIdx];
                                 if (!header) return;
+
+                                const minAmt = formatForSheet(header.minAmount);
+                                const maxAmt = formatForSheet(header.maxAmount) || 999999999;
+                                const minD = parseInt(row.minDays) || 0;
+                                const maxD = parseInt(row.maxDays) || 99999;
+
                                 allFlattenedRows.push([
                                     executionDate,
                                     bank.name,
                                     result.desc || bank.desc,
-                                    rate,
-                                    header.minAmount || 0,
-                                    header.maxAmount || 999999999,
-                                    row.minDays || 0,
-                                    row.maxDays || 99999,
+                                    pRate,
+                                    minAmt,
+                                    maxAmt,
+                                    minD,
+                                    maxD,
                                     bank.url,
                                     result.json
                                 ]);
