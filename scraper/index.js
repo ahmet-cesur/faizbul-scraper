@@ -422,59 +422,143 @@ async function main() {
             }
 
             // --- RIGHT SIDE (MANUAL ZONE) UPDATE ---
-            // Requirement: "Right side updates if left is really successfully updated only."
-            // Since we are inside the 'allStructuredResults' loop, we know the Left side was successfully scraped.
-            // We will now overwrite the Right Side with this fresh data to keep it in sync.
-            // If the scraper FAILED, this loop does NOT run for that bank, so the Right Side (and User Edits) are preserved.
+            // Requirement: "minamount , maxamount, mindays, maxdays on right side matrix to be not touched by algo. they will be edited by me only."
+            // Approach: Check if "Bank (Manual):" exists. If yes, preserve structure and only update rates. If no, seed structure.
 
             const rightStartCol = 50;
             console.log(`Updating Right Side (Manual Zone) for ${item.bank} (ID: ${item.id})...`);
 
-            // 1. Clear the Right Block Area first (avoid artifacts)
-            for (let r = 0; r < MATRIX_BLOCK_SIZE; r++) {
-                for (let c = 0; c < 50; c++) {
-                    const cell = matrixSheet.getCell(startRow + r, rightStartCol + c);
-                    cell.value = null;
+            const anchorCell = matrixSheet.getCell(startRow, rightStartCol);
+            const isInitialized = (anchorCell.value === "Bank (Manual):");
+
+            if (!isInitialized) {
+                console.log(` -> Initializing seeding for ${item.bank}...`);
+                // 1. Clear Area
+                for (let r = 0; r < MATRIX_BLOCK_SIZE; r++) {
+                    for (let c = 0; c < 50; c++) {
+                        matrixSheet.getCell(startRow + r, rightStartCol + c).value = null;
+                    }
                 }
-            }
 
-            // 2. Write Header Info
-            matrixSheet.getCell(startRow, rightStartCol).value = "Bank (Manual):";
-            matrixSheet.getCell(startRow, rightStartCol + 1).value = item.bank;
+                // 2. Write Metadata
+                anchorCell.value = "Bank (Manual):";
+                matrixSheet.getCell(startRow, rightStartCol + 1).value = item.bank;
+                matrixSheet.getCell(startRow + 1, rightStartCol).value = "Last Sync:";
+                matrixSheet.getCell(startRow + 1, rightStartCol + 1).value = executionDate;
+                matrixSheet.getCell(startRow + 2, rightStartCol).value = "ID:";
+                matrixSheet.getCell(startRow + 2, rightStartCol + 1).value = item.id;
+                matrixSheet.getCell(startRow + 2, rightStartCol + 2).value = "URL:";
+                matrixSheet.getCell(startRow + 2, rightStartCol + 3).value = item.url || "";
 
-            matrixSheet.getCell(startRow + 1, rightStartCol).value = "Last Sync:";
-            matrixSheet.getCell(startRow + 1, rightStartCol + 1).value = executionDate;
-
-            matrixSheet.getCell(startRow + 2, rightStartCol).value = "ID:";
-            matrixSheet.getCell(startRow + 2, rightStartCol + 1).value = item.id;
-
-            matrixSheet.getCell(startRow + 2, rightStartCol + 2).value = "URL:";
-            matrixSheet.getCell(startRow + 2, rightStartCol + 3).value = item.url || "";
-
-            // 3. Write Table Headers
-            const hRow = startRow + 3;
-            matrixSheet.getCell(hRow, rightStartCol).value = "Vade";
-            let colOff = 1;
-            if (item.table.headers) {
-                item.table.headers.forEach(h => {
-                    matrixSheet.getCell(hRow, rightStartCol + colOff).value = `${h.label} (${h.minAmount}-${h.maxAmount})`;
-                    colOff++;
-                });
-            }
-
-            // 4. Write Rows (Values only)
-            if (item.table.rows) {
-                item.table.rows.forEach((r, idx) => {
-                    const rowAbs = hRow + 1 + idx;
-                    if (rowAbs >= startRow + MATRIX_BLOCK_SIZE) return;
-
-                    matrixSheet.getCell(rowAbs, rightStartCol).value = r.label;
-                    r.rates.forEach((rate, rIdx) => {
-                        if (rIdx + 1 < 50) {
-                            matrixSheet.getCell(rowAbs, rightStartCol + rIdx + 1).value = rate;
-                        }
+                // 3. Write Headers
+                const hRow = startRow + 3;
+                matrixSheet.getCell(hRow, rightStartCol).value = "Vade";
+                let colOff = 1;
+                if (item.table.headers) {
+                    item.table.headers.forEach(h => {
+                        matrixSheet.getCell(hRow, rightStartCol + colOff).value = `${h.label} (${h.minAmount}-${h.maxAmount})`;
+                        colOff++;
                     });
-                });
+                }
+
+                // 4. Write Rows
+                if (item.table.rows) {
+                    item.table.rows.forEach((r, idx) => {
+                        const rowAbs = hRow + 1 + idx;
+                        if (rowAbs >= startRow + MATRIX_BLOCK_SIZE) return;
+
+                        matrixSheet.getCell(rowAbs, rightStartCol).value = r.label;
+                        r.rates.forEach((rate, rIdx) => {
+                            if (rIdx + 1 < 50) matrixSheet.getCell(rowAbs, rightStartCol + rIdx + 1).value = rate;
+                        });
+                    });
+                }
+
+            } else {
+                console.log(` -> Structure exists. Updating Rates ONLY for ${item.bank}...`);
+
+                // Update Sync Time
+                matrixSheet.getCell(startRow + 1, rightStartCol + 1).value = executionDate;
+
+                // --- Helper Parsers ---
+                const parseUserDuration = (txt) => {
+                    if (!txt) return null;
+                    const val = txt.toString().toLowerCase();
+                    const nums = val.match(/\d+/g);
+                    if (!nums) return null;
+                    let mult = 1;
+                    if (val.includes('yıl') || val.includes('yil')) mult = 365;
+                    else if (val.includes('ay') && !val.includes('gün')) mult = 30;
+
+                    if (nums.length >= 2) return { min: parseInt(nums[0]) * mult, max: parseInt(nums[1]) * mult };
+                    else if (nums.length === 1) {
+                        const d = parseInt(nums[0]) * mult;
+                        if (val.includes('+') || val.includes('üzeri')) return { min: d, max: 99999 };
+                        return { min: d, max: d };
+                    }
+                    return null;
+                };
+
+                const parseUserAmount = (txt) => {
+                    if (!txt) return null;
+                    const val = txt.toString();
+                    const content = val.includes('(') ? val.split('(').pop().split(')')[0] : val;
+                    const parts = content.split('-');
+                    const nums = parts.map(p => parseFloat(p.replace(/[^0-9.]/g, '')));
+
+                    if (nums.length >= 2 && !isNaN(nums[0])) return { min: nums[0], max: nums[1] || 999999999 };
+                    if (nums.length === 1 && !isNaN(nums[0])) return { min: nums[0], max: 999999999 };
+                    return null;
+                };
+
+                // Read User Headers (Row 3 relative)
+                const hRow = startRow + 3;
+
+                // Identify User Columns (Amounts)
+                const userCols = [];
+                for (let c = 1; c < 50; c++) { // Max 49 columns of data
+                    const cell = matrixSheet.getCell(hRow, rightStartCol + c);
+                    if (cell.value) {
+                        const range = parseUserAmount(cell.value);
+                        if (range) userCols.push({ colOffset: c, ...range });
+                    }
+                }
+
+                // Iterate User Rows (Row 4 to 49 relative)
+                for (let r = 1; r < MATRIX_BLOCK_SIZE - 3; r++) {
+                    const rowAbs = hRow + r;
+                    const lblCell = matrixSheet.getCell(rowAbs, rightStartCol);
+                    if (!lblCell.value) continue;
+
+                    const userDays = parseUserDuration(lblCell.value);
+                    if (!userDays) continue;
+
+                    // For each User Column, find match in Scraper Data
+                    if (item.table && item.table.rows) {
+                        for (const uCol of userCols) {
+                            // Find best matching row in Scraper Data
+                            const targetDay = userDays.min;
+                            const sRow = item.table.rows.find(row => targetDay >= (row.minDays || 0) && targetDay <= (row.maxDays || 99999));
+
+                            if (sRow && item.table.headers) {
+                                // Find best matching column in Scraper Data
+                                const targetAmt = uCol.min;
+                                const sColIdx = item.table.headers.findIndex(h => {
+                                    const sMin = parseFloat(h.minAmount) || 0;
+                                    const sMax = parseFloat(h.maxAmount) || 999999999;
+                                    return targetAmt >= sMin && targetAmt <= sMax;
+                                });
+
+                                if (sColIdx !== -1 && sRow.rates[sColIdx] !== undefined) {
+                                    let val = sRow.rates[sColIdx];
+                                    if (typeof val === 'string') val = parseFloat(val.replace(',', '.'));
+
+                                    matrixSheet.getCell(rowAbs, rightStartCol + uCol.colOffset).value = val;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
