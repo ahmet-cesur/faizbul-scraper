@@ -39,62 +39,50 @@ async function main() {
             // Replace non-breaking space and other weird spaces
             txt = txt.replace(/\u00A0/g, ' ').replace(/\s+/g, '');
             var s = txt.replace(/[^\d,.-]/g, '');
-            if (!s) return NaN;
             
-            var lastDot = s.lastIndexOf('.');
-            var lastComma = s.lastIndexOf(',');
-            
-            // Find the right-most separator
-            var lastSepIndex = Math.max(lastDot, lastComma);
-            var lastSepChar = lastSepIndex === lastDot ? '.' : ',';
-            
-            // 1. Specific Rule: If exactly 2 digits after last separator, it is DECIMAL
-            if (lastSepIndex > -1) {
-                var afterSep = s.substring(lastSepIndex + 1);
-                if (afterSep.length === 2 && /^\d+$/.test(afterSep)) {
-                    if (lastSepChar === '.') {
-                        // 1,234.56 or 1234.56 -> Remove commas, keep dot
-                        return parseFloat(s.replace(/,/g, ''));
+            var res = NaN;
+
+            if (s) {
+                var lastDot = s.lastIndexOf('.');
+                var lastComma = s.lastIndexOf(',');
+                
+                // Find the right-most separator
+                var lastSepIndex = Math.max(lastDot, lastComma);
+                var lastSepChar = lastSepIndex === lastDot ? '.' : ',';
+                
+                // 1. Specific Rule: If exactly 2 digits after last separator, it is DECIMAL
+                if (lastSepIndex > -1) {
+                    var afterSep = s.substring(lastSepIndex + 1);
+                    if (afterSep.length === 2 && /^\d+$/.test(afterSep)) {
+                        if (lastSepChar === '.') {
+                            res = parseFloat(s.replace(/,/g, ''));
+                        } else {
+                            res = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+                        }
+                    }
+                }
+                
+                if (isNaN(res)) {
+                    // 2. Fallback Logic
+                    if (lastComma > -1 && lastDot === -1) {
+                        var after = s.substring(lastComma + 1);
+                        if (after.length === 3) res = parseFloat(s.replace(/,/g, ''));
+                        else res = parseFloat(s.replace(',', '.'));
+                    } 
+                    else if (lastDot > -1 && lastComma === -1) {
+                        var after = s.substring(lastDot + 1);
+                        if (after.length === 3) res = parseFloat(s.replace(/\./g, ''));
+                        else res = parseFloat(s);
+                    }
+                    else if (lastComma > lastDot) {
+                        res = parseFloat(s.replace(/\./g, '').replace(',', '.'));
                     } else {
-                        // 1.234,56 or 1234,56 -> Remove dots, swap comma to dot
-                        return parseFloat(s.replace(/\./g, '').replace(',', '.'));
+                        res = parseFloat(s.replace(/,/g, ''));
                     }
                 }
             }
-            
-            // 2. Fallback Logic for other cases (3 digits, 1 digit, no separator)
-            
-            // If comma is last and seems like decimal (e.g. 5,5 or 5,500 where 500 is treated as decimal in some systems? No, 3 digits usually thousands)
-            // Let's stick to standard logic: 
-            // - If mixed separators, determining order tells us which is which.
-            // - If single separator:
-            //   - 3 digits after -> Thousands
-            //   - Not 3 digits -> Decimal
-            
-            if (lastComma > -1 && lastDot === -1) {
-                 // Only Comma (e.g. 5,5 or 1,000 or 5,50)
-                 var after = s.substring(lastComma + 1);
-                 // If 3 digits, assume thousands (1,000 = 1000). Else decimal (5,5 = 5.5).
-                 if (after.length === 3) return parseFloat(s.replace(/,/g, ''));
-                 return parseFloat(s.replace(',', '.'));
-            } 
-            
-            if (lastDot > -1 && lastComma === -1) {
-                // Only Dot (e.g. 5.5 or 1.000)
-                var after = s.substring(lastDot + 1);
-                // If 3 digits, assume thousands (1.000 = 1000). Else decimal (5.5 = 5.5).
-                if (after.length === 3) return parseFloat(s.replace(/\./g, ''));
-                return parseFloat(s);
-            }
-
-            // Mixed separators (1.000,50 or 1,000.50)
-            if (lastComma > lastDot) {
-                // Comma is last (1.000,50) -> Decimal is Comma
-                return parseFloat(s.replace(/\./g, '').replace(',', '.'));
-            } else {
-                // Dot is last (1,000.50) -> Decimal is Dot
-                return parseFloat(s.replace(/,/g, ''));
-            }
+            // console.log('INTERN: SPN "' + str + '" -> ' + res); // Uncomment for heavy debugging
+            return res;
         };
 
         window.parseDuration = function(txt) {
