@@ -24,51 +24,43 @@ async function main() {
 
     const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36'
+        ]
     });
 
     const commonJs = `
         window.smartParseNumber = function(str) {
-            if (!str) return NaN;
-            var cleaned = str.replace(/%/g, '').replace(/TL/gi, '').replace(/ve üzeri/gi, '')
-                             .replace(/ÜZERİ/gi, '').replace(/[\\u200B-\\u200D\\uFEFF]/g, '')
-                             .replace(/\\s/g, '').trim();
-            if (!cleaned) return NaN;
+            if (str === null || str === undefined) return NaN;
+            var txt = str.toString().trim();
+            var s = txt.replace(/[^\d,.-]/g, '');
+            if (!s) return NaN;
             
-            // Heuristic: identify decimal separator
-            // If there's only one separator and it's 1-2 digits from the end, it's likely a decimal.
-            // If there are multiple separators, the last one is likely the decimal if it's 1-2 digits from the end.
+            var lastDot = s.lastIndexOf('.');
+            var lastComma = s.lastIndexOf(',');
+            var res = NaN;
             
-            var lastDot = cleaned.lastIndexOf('.');
-            var lastComma = cleaned.lastIndexOf(',');
-            var normalized = cleaned;
-            
-            if (lastDot > lastComma) {
-                // Potential English (1,234.56) or Turkish with thousands dot (1.234)
-                var afterDot = cleaned.substring(lastDot + 1);
-                if (afterDot.length === 2 || afterDot.length === 1) {
-                    // Decimal dot: 1234.56
-                    normalized = cleaned.replace(/,/g, '');
+            if (lastComma > lastDot) {
+                var afterComma = s.substring(lastComma + 1);
+                if (afterComma.length <= 2 && /^\d+$/.test(afterComma)) {
+                     res = parseFloat(s.replace(/\./g, '').replace(',', '.'));
                 } else {
-                    // Thousand dot: 1.234
-                    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+                     res = parseFloat(s.replace(/,/g, ''));
                 }
-            } else if (lastComma > lastDot) {
-                // Potential Turkish (1.234,56)
-                var afterComma = cleaned.substring(lastComma + 1);
-                if (afterComma.length === 2 || afterComma.length === 1) {
-                    // Decimal comma: 1234,56
-                    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+            } else if (lastDot > lastComma) {
+                var afterDot = s.substring(lastDot + 1);
+                if (afterDot.length <= 2 && /^\d+$/.test(afterDot)) {
+                     res = parseFloat(s.replace(/,/g, ''));
                 } else {
-                    // Thousand comma: 1,234 (English style)
-                    normalized = cleaned.replace(/,/g, '');
+                     res = parseFloat(s.replace(/\./g, '').replace(',', '.'));
                 }
             } else {
-                // No mixed separators, just one or none
-                normalized = cleaned.replace(',', '.');
+                res = parseFloat(s.replace(',', '.'));
             }
-            
-            return parseFloat(normalized);
+            return res;
         };
 
         window.parseDuration = function(txt) {
@@ -108,22 +100,23 @@ async function main() {
     `;
 
     const banks = [
-        require('./banks/ziraat'),
-        require('./banks/garanti-hosgeldin'),
-        require('./banks/garanti-standart'),
-        require('./banks/akbank-tanisma'),
-        require('./banks/akbank-standart'),
-        require('./banks/yapikredi-standart'),
-        require('./banks/yapikredi-yeniparam'),
-        require('./banks/halkbank'),
-        require('./banks/vakifbank-tanisma'),
-        require('./banks/vakifbank-standart'),
-        require('./banks/odeabank'),
-        require('./banks/denizbank'),
-        require('./banks/fibabanka')
+        { id: 1, ...require('./banks/ziraat') },
+        { id: 2, ...require('./banks/garanti-hosgeldin') },
+        { id: 3, ...require('./banks/garanti-standart') },
+        { id: 4, ...require('./banks/akbank-tanisma') },
+        { id: 5, ...require('./banks/akbank-standart') },
+        { id: 6, ...require('./banks/yapikredi-standart') },
+        { id: 7, ...require('./banks/yapikredi-yeniparam') },
+        { id: 8, ...require('./banks/halkbank') },
+        { id: 9, ...require('./banks/vakifbank-tanisma') },
+        { id: 10, ...require('./banks/vakifbank-standart') },
+        { id: 11, ...require('./banks/odeabank') },
+        { id: 12, ...require('./banks/denizbank') },
+        { id: 13, ...require('./banks/fibabanka') }
     ];
 
     const allFlattenedRows = [];
+    const allStructuredResults = []; // NEW: Store structured JSON results for Matrix View
     const executionLogs = [];
     const executionDate = new Date().toISOString();
     const startTime = Date.now();
@@ -168,7 +161,7 @@ async function main() {
                     };
 
                     var s = document.createElement('script');
-                    s.innerHTML = commonJs;
+                    s.textContent = commonJs;
                     document.head.appendChild(s);
 
                     try {
@@ -185,18 +178,33 @@ async function main() {
             errorMessage = result.error || '';
 
             if (result.status === 'SUCCESS' && result.json) {
+                if (result.json.length < 50) console.log(`DEBUG: Short JSON for ${bank.name}: ${result.json}`);
                 const table = JSON.parse(result.json);
+                console.log(`DEBUG ${bank.name}: headers=${table.headers?.length || 0}, rows=${table.rows?.length || 0}`);
+                if (table.rows && table.rows.length > 0) {
+                    console.log(`DEBUG ${bank.name}: First row has ${table.rows[0].rates?.length || 0} rates`);
+                }
                 const bankRowsBefore = allFlattenedRows.length;
 
-                // Validation and formatting helper
                 const formatForSheet = (val) => {
                     if (val === null || val === undefined || val === '') return 0;
                     if (typeof val === 'number') return val;
-                    // If it's a string, use our smart parser logic to get a clean number
-                    const cleaned = val.toString().replace(/\s/g, '');
-                    // For sheet writing, we want a pure number or a string like "123456.78"
-                    // But sending as actual JS number is best for Sheets API
-                    const num = parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
+
+                    var s = val.toString().replace(/[^\d,.-]/g, '').trim();
+                    if (!s) return 0;
+
+                    if (s.indexOf('.') > -1 && s.indexOf(',') > -1) {
+                        if (s.lastIndexOf('.') < s.lastIndexOf(',')) s = s.replace(/\./g, '').replace(',', '.');
+                        else s = s.replace(/,/g, '');
+                    } else if (s.indexOf(',') > -1) {
+                        var parts = s.split(',');
+                        if (parts[parts.length - 1].length <= 2) s = s.replace(',', '.');
+                        else s = s.replace(/,/g, '');
+                    } else if (s.indexOf('.') > -1) {
+                        var parts = s.split('.');
+                        if (parts[parts.length - 1].length > 2) s = s.replace(/\./g, '');
+                    }
+                    const num = parseFloat(s);
                     return isNaN(num) ? 0 : num;
                 };
 
@@ -222,10 +230,12 @@ async function main() {
                     errorMessage = `Back-end validation failed: Found abnormal rate (${invalidRateValue})`;
                     console.warn(`Validation Error for ${bank.name}: Found rate ${invalidRateValue} > 100. Discarding all results.`);
                 } else if (table.rows) {
+                    let nonZeroRatesCount = 0;
                     table.rows.forEach(row => {
                         row.rates.forEach((rate, colIdx) => {
                             const pRate = formatForSheet(rate);
                             if (pRate > 0) {
+                                nonZeroRatesCount++;
                                 const header = table.headers && table.headers[colIdx];
                                 if (!header) return;
 
@@ -249,12 +259,30 @@ async function main() {
                             }
                         });
                     });
-
-                    const successKey = `${bank.name.trim().toLowerCase()}|${(result.desc || bank.desc).trim().toLowerCase()}`;
-                    successfulBankNames.add(successKey);
+                    console.log(`DEBUG ${bank.name}: Found ${nonZeroRatesCount} non-zero rates`);
 
                     rowCount = allFlattenedRows.length - bankRowsBefore;
-                    console.log(`Extracted table for ${bank.name} (${result.desc || bank.desc}): ${rowCount} entries found.`);
+
+                    // Store structured data for Matrix View
+                    if (rowCount > 0) {
+                        allStructuredResults.push({
+                            id: bank.id,
+                            bank: bank.name,
+                            desc: result.desc || bank.desc,
+                            date: executionDate,
+                            table: table,
+                            url: bank.url
+                        });
+                    }
+
+                    // ONLY add to successful names if we actually found data
+                    if (rowCount > 0) {
+                        const successKey = `${bank.name.trim().toLowerCase()}|${(result.desc || bank.desc).trim().toLowerCase()}`;
+                        successfulBankNames.add(successKey);
+                        console.log(`Extracted table for ${bank.name} (${result.desc || bank.desc}): ${rowCount} entries found.`);
+                    } else {
+                        console.warn(`No entries found for ${bank.name} (${result.desc || bank.desc}). Old data will be preserved.`);
+                    }
                 }
             } else {
                 if (result.status === 'SUCCESS' && !result.json) {
@@ -294,6 +322,154 @@ async function main() {
             await draftSheet.clearRows();
         }
         if (executionLogs.length > 0) await draftSheet.addRows(executionLogs);
+
+        // --- NEW: Update Matrix View Sheet (Comparison Matrix) ---
+        console.log('Updating Comparison Matrix Sheet...');
+        const METRICS_SHEET_TITLE = 'Comparison Matrix';
+        let matrixSheet = doc.sheetsByTitle[METRICS_SHEET_TITLE];
+
+        // Ensure Sheet Exists and is at Index 0 (for default CSV export)
+        if (!matrixSheet) {
+            matrixSheet = await doc.addSheet({ title: METRICS_SHEET_TITLE, index: 0 });
+        } else if (matrixSheet.index !== 0) {
+            // Move to index 0 if not already
+            // Note: google-spreadsheet doesn't have a direct 'move' method easily exposed, 
+            // but we can try to set index property if the library supports it, or just rely on it being found.
+            // Actually, for CSV export, the first sheet is default. 
+            // We will try updating the property.
+            try {
+                await matrixSheet.updateProperties({ index: 0 });
+            } catch (e) { console.log('Could not move sheet to index 0, might already be there or permission issue'); }
+        }
+
+        const MATRIX_BLOCK_SIZE = 50;
+        const TOTAL_ROWS = banks.length * MATRIX_BLOCK_SIZE;
+        const TOTAL_COLS = 100; // 50 Left + 50 Right
+
+        // Resize sheet to fit strict matrix
+        await matrixSheet.resize({ rowCount: TOTAL_ROWS + 10, colCount: TOTAL_COLS });
+        await matrixSheet.loadCells({ startRowIndex: 0, endRowIndex: TOTAL_ROWS, startColumnIndex: 0, endColumnIndex: TOTAL_COLS });
+
+        for (const item of allStructuredResults) {
+            if (!item.id) continue;
+
+            // Calculate Offsets
+            const startRow = (item.id - 1) * MATRIX_BLOCK_SIZE;
+            const leftColStart = 0;
+            // const rightColStart = 50; // We don't write to right side automatically to preserve user edits, or we check if empty.
+
+            // Clear the Left Block Area (0-49 columns, 50 rows) for this bank
+            // We do this by iterating cells in backing store and setting value to empty, then refilling.
+            for (let r = 0; r < MATRIX_BLOCK_SIZE; r++) {
+                for (let c = 0; c < 50; c++) {
+                    const cell = matrixSheet.getCell(startRow + r, leftColStart + c);
+                    cell.value = null;
+                }
+            }
+
+            // Write Header Info
+            const r0c0 = matrixSheet.getCell(startRow, 0); r0c0.value = "Bank:";
+            const r0c1 = matrixSheet.getCell(startRow, 1); r0c1.value = item.bank;
+            const r0c2 = matrixSheet.getCell(startRow, 2); r0c2.value = item.desc;
+
+            const r1c0 = matrixSheet.getCell(startRow + 1, 0); r1c0.value = "Updated:";
+            const r1c1 = matrixSheet.getCell(startRow + 1, 1); r1c1.value = item.date;
+
+            const r2c0 = matrixSheet.getCell(startRow + 2, 0); r2c0.value = "URL:";
+            const r2c1 = matrixSheet.getCell(startRow + 2, 1); r2c1.value = item.url;
+
+            // Write Table Headers (Row 3 relative)
+            const headerRowIdx = startRow + 3;
+            const headers = ['Vade', 'Min Day', 'Max Day', 'Min Amt', 'Max Amt']; // Standardize basic cols
+            // Actually, the app needs dynamic headers or fixed?
+            // Let's dump the JSON table structure.
+            // Table Headers usually correspond to Rates.
+
+            const cellVade = matrixSheet.getCell(headerRowIdx, 0); cellVade.value = "Vade";
+
+            let colOffset = 1;
+            // Write Rate Range Headers
+            if (item.table.headers) {
+                item.table.headers.forEach(h => {
+                    const cell = matrixSheet.getCell(headerRowIdx, colOffset);
+                    cell.value = `${h.label} (${h.minAmount}-${h.maxAmount})`;
+                    colOffset++;
+                });
+            }
+
+            // Write Rows
+            if (item.table.rows) {
+                item.table.rows.forEach((r, idx) => {
+                    const rowAbs = headerRowIdx + 1 + idx;
+                    if (rowAbs >= startRow + MATRIX_BLOCK_SIZE) return; // Boundary check
+
+                    const c0 = matrixSheet.getCell(rowAbs, 0); c0.value = r.label; // Vade Label (e.g. 32 Gün)
+
+                    // We should verify we are writing rates to correct columns matching headers
+                    r.rates.forEach((rate, rIdx) => {
+                        if (rIdx + 1 < 50) {
+                            const cRate = matrixSheet.getCell(rowAbs, rIdx + 1);
+                            cRate.value = rate;
+                        }
+                    });
+
+                    // Also write min/max days hidden or visible? 
+                    // Let's put them in columns 20, 21 if needed, or just rely on row label.
+                    // The app needs them. 
+                    // Let's add them to the end of the content? 
+                    // Or better, keep it simple. The app parser will need to be smart.
+                });
+            }
+
+            // --- SEED RIGHT SIDE (MANUAL ZONE) IF EMPTY ---
+            const rightStartCol = 50;
+            const checkCell = matrixSheet.getCell(startRow, rightStartCol);
+
+            if (!checkCell.value) {
+                console.log(`Seeding Right Side (Manual Zone) for ${item.bank} (ID: ${item.id})...`);
+                // Copy Header Info
+                matrixSheet.getCell(startRow, rightStartCol).value = "Bank (Manual):";
+                matrixSheet.getCell(startRow, rightStartCol + 1).value = item.bank;
+
+                matrixSheet.getCell(startRow + 1, rightStartCol).value = "Last Sync:";
+                matrixSheet.getCell(startRow + 1, rightStartCol + 1).value = executionDate;
+
+                matrixSheet.getCell(startRow + 2, rightStartCol).value = "ID:";
+                matrixSheet.getCell(startRow + 2, rightStartCol + 1).value = item.id;
+
+                matrixSheet.getCell(startRow + 2, rightStartCol + 2).value = "URL:";
+                matrixSheet.getCell(startRow + 2, rightStartCol + 3).value = item.url || "";
+
+                // Copy Table Headers
+                const hRow = startRow + 3;
+                matrixSheet.getCell(hRow, rightStartCol).value = "Vade";
+                let colOff = 1;
+                if (item.table.headers) {
+                    item.table.headers.forEach(h => {
+                        matrixSheet.getCell(hRow, rightStartCol + colOff).value = `${h.label} (${h.minAmount}-${h.maxAmount})`;
+                        colOff++;
+                    });
+                }
+
+                // Copy Rows (Values only)
+                if (item.table.rows) {
+                    item.table.rows.forEach((r, idx) => {
+                        const rowAbs = hRow + 1 + idx;
+                        if (rowAbs >= startRow + MATRIX_BLOCK_SIZE) return;
+
+                        matrixSheet.getCell(rowAbs, rightStartCol).value = r.label;
+                        r.rates.forEach((rate, rIdx) => {
+                            if (rIdx + 1 < 50) {
+                                matrixSheet.getCell(rowAbs, rightStartCol + rIdx + 1).value = rate;
+                            }
+                        });
+                    });
+                }
+            }
+        }
+
+        await matrixSheet.saveUpdatedCells();
+        console.log('Comparison Matrix updated.');
 
         console.log('Performing selective update on Sheet 1...');
         let dataSheet = doc.sheetsByTitle['Sheet 1'] || doc.sheetsByTitle['Sheet1'] || doc.sheetsByTitle['mewduat'] || doc.sheetsByTitle['Mevduat'];

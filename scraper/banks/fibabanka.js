@@ -15,17 +15,16 @@ module.exports = {
                     if (table.rows.length < 2) continue;
 
                     var tableText = table.textContent || table.innerText;
-                    if (tableText.includes('Kiraz')) continue;
+                    if (tableText.includes('Kiraz') || tableText.includes('Portföy')) continue;
 
                     var rows = Array.from(table.querySelectorAll('tr'));
                     var headerRowIndex = -1;
                     
-                    // Scan first 5 rows for VADE or GÜN in the first cell
-                    for (var r = 0; r < Math.min(rows.length, 5); r++) {
+                    for (var r = 0; r < Math.min(rows.length, 10); r++) {
                         var cells = Array.from(rows[r].querySelectorAll('th, td'));
-                        if (cells.length > 0) {
-                            var cellText = cells[0].textContent.toUpperCase().trim();
-                            if (cellText.includes('VADE') || cellText.includes('GÜN')) {
+                        if (cells.length > 2) {
+                            var rowText = rows[r].textContent.toUpperCase();
+                            if (rowText.includes('VADE') || rowText.includes('GÜN')) {
                                 headerRowIndex = r;
                                 break;
                             }
@@ -35,8 +34,6 @@ module.exports = {
                     if (headerRowIndex === -1) continue;
                     
                     var headerCells = Array.from(rows[headerRowIndex].querySelectorAll('th, td'));
-                    if (headerCells.length < 2) continue;
-
                     var headers = []; 
                     var hasValidHeader = false;
                     for (var i = 1; i < headerCells.length; i++) {
@@ -47,33 +44,25 @@ module.exports = {
                         if (!isNaN(min)) hasValidHeader = true;
                         headers.push({ label: txt, minAmount: min || 0, maxAmount: max });
                     }
-                    if (!hasValidHeader) continue;
+                    if (!hasValidHeader && headerCells.length < 3) continue;
 
                     var tableRows = [];
                     for (var r = headerRowIndex + 1; r < rows.length; r++) {
                         var cells = Array.from(rows[r].querySelectorAll('td, th'));
                         if (cells.length < 2) continue;
                         var durTxt = cells[0].textContent.trim();
+                        var durParsed = parseDuration(durTxt);
                         
-                        var durParsed = null;
-                        var durMatch = durTxt.match(/(\\d+)\\s*[-\\–]\\s*(\\d+)/);
-                        if (durMatch) {
-                            durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
-                        } else {
-                            var singleMatch = durTxt.match(/(\\d+)/);
-                            if (singleMatch && durTxt.toUpperCase().includes('GÜN')) {
-                                durParsed = { min: parseInt(singleMatch[1]), max: parseInt(singleMatch[1]) };
-                            } else {
-                                durParsed = parseDuration(durTxt);
-                            }
+                        if (!durParsed) {
+                             var durMatch = durTxt.match(/(\\d+)\\s*[-\\–]\\s*(\\d+)/);
+                             if (durMatch) durParsed = { min: parseInt(durMatch[1]), max: parseInt(durMatch[2]) };
                         }
+                        
                         if (!durParsed) continue;
 
                         var rowRates = [];
-                        for (var c = 1; c < cells.length && c <= headers.length; c++) {
-                            var val = cells[c].textContent.trim();
-                            var rate = smartParseNumber(val);
-                            if (!isNaN(rate) && rate > 100) continue; 
+                        for (var c = 1; c < cells.length && c < headerCells.length; c++) {
+                            var rate = smartParseNumber(cells[c].textContent);
                             rowRates.push(isNaN(rate) ? null : rate);
                         }
                         if (rowRates.some(r => r !== null)) {
@@ -82,7 +71,7 @@ module.exports = {
                     }
 
                     if (tableRows.length > 0) {
-                        Android.sendRateWithTable(tableRows[0].rates.find(r => r !== null) || 0, 'e-Mevduat', 'Fibabanka', JSON.stringify({headers: headers, rows: tableRows}));
+                        Android.sendRateWithTable(0, 'e-Mevduat', 'Fibabanka', JSON.stringify({headers: headers, rows: tableRows}));
                         return true;
                     }
                 }
@@ -97,20 +86,17 @@ module.exports = {
                     return;
                 }
                 
-                // Only attempt click if we've waited a while and still found nothing (last resort)
-                if (step === 0 && attempts > 5) {
+                if (step === 0) {
                     var targetTitle = 'e-Mevduat';
-                    var btn = Array.from(document.querySelectorAll('h2, button, a, span')).find(h => 
+                    var elements = Array.from(document.querySelectorAll('h2, button, a, span, .accordion__title'));
+                    var btn = elements.find(h => 
                         h.textContent.includes(targetTitle) && 
                         (h.className.includes('accordion') || h.className.includes('title'))
                     );
                     
-                    if (btn && !btn.getAttribute('data-clicked')) {
-                        log('Clicking accordion as fallback: ' + btn.innerText);
-                        btn.setAttribute('data-clicked', 'true');
-                        // Use dispatchEvent to emulate a softer click if possible
-                        var evt = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-                        btn.dispatchEvent(evt);
+                    if (btn) {
+                        log('Clicking accordion: ' + btn.innerText);
+                        btn.click();
                         step = 1;
                     }
                 }
@@ -125,4 +111,3 @@ module.exports = {
         }
     })()`
 };
-

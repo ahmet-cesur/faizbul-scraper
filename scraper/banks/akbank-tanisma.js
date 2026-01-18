@@ -4,46 +4,60 @@ module.exports = {
     desc: "Tanışma Faizi",
     script: `(function() {
         try {
-            var amount = 100000; var duration = 32; var attempts = 0;
-            \n            function extractAkbankTable() {
-                var table = document.querySelector('table.faizTablo') || Array.from(document.querySelectorAll('table')).find(t => t.innerText.includes('Akbank İnternet') || t.innerText.includes('Tanışma'));
-                if (!table) { Android.log('Table not found'); return false; }
-                var rows = table.rows; if (!rows || rows.length < 3) { Android.log('Table has too few rows: ' + (rows ? rows.length : 0)); return false; }
-                Android.log('Found table matching Akbank criteria');
-                var headers = []; 
-                var hasValidHeader = false;
-                for (var i = 1; i < rows[0].cells.length; i++) {
-                    var cellTxt = rows[0].cells[i].innerText.trim();
-                    var minAmt = 0, maxAmt = 999999999;
-                    if (cellTxt.indexOf('-') > -1) { var p = cellTxt.split('-'); minAmt = smartParseNumber(p[0]); maxAmt = smartParseNumber(p[1]); }
-                    else if (cellTxt.match(/[\\d+]/)) { minAmt = smartParseNumber(cellTxt); }
-                    
-                    if (minAmt > 0) hasValidHeader = true;
-                    headers.push({ label: cellTxt, minAmount: minAmt, maxAmount: maxAmt });
-                }
-                if (!hasValidHeader) return false;
-
-                var tableRows = [];
-                for (var r = 1; r < rows.length; r++) {
-                    var cells = rows[r].cells; if (cells.length < 2) continue;
-                    var durTxt = cells[0].innerText.trim(); var durParsed = parseDuration(durTxt);
-                    if (!durParsed) continue;
-                    
-                    var rowRates = [];
-                    for (var c = 1; c < cells.length; c++) {
-                        var rate = smartParseNumber(cells[c].innerText);
-                        rowRates.push(isNaN(rate) ? null : rate);
-                    }
-                    tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
-                }
-                if(tableRows.length === 0) return false;
+            var attempts = 0;
+            function extractAkbankData() {
+                var table = Array.from(document.querySelectorAll('table')).find(t => t.textContent.includes('Tanışma') || t.textContent.includes('İnternet'));
                 
-                Android.sendRateWithTable(tableRows[0].rates[0], 'Tanışma Faizi', 'Akbank', JSON.stringify({headers: headers, rows: tableRows}));
-                return true;
+                if (table && table.rows.length >= 2) {
+                    var rows = table.rows;
+                    var headers = []; 
+                    var firstRowCells = rows[0].cells;
+                    for (var i = 1; i < firstRowCells.length; i++) {
+                        var cellTxt = firstRowCells[i].textContent.trim();
+                        var parts = cellTxt.replace(/TL/gi, '').split('-');
+                        var minAmt = smartParseNumber(parts[0]);
+                        var maxAmt = parts.length > 1 ? smartParseNumber(parts[1]) : 999999999;
+                        headers.push({ label: cellTxt, minAmount: minAmt || 0, maxAmount: maxAmt });
+                    }
+                    var tableRows = [];
+                    for (var r = 1; r < rows.length; r++) {
+                        var cells = rows[r].cells; if (cells.length < 2) continue;
+                        var durTxt = cells[0].textContent.trim(); 
+                        var durParsed = parseDuration(durTxt);
+                        var rowRates = [];
+                        for (var c = 1; c < cells.length; c++) {
+                            var rate = smartParseNumber(cells[c].textContent);
+                            rowRates.push(isNaN(rate) ? null : rate);
+                        }
+                        if (rowRates.some(r => r !== null)) {
+                            tableRows.push({ label: durTxt, minDays: durParsed ? durParsed.min : null, maxDays: durParsed ? durParsed.max : null, rates: rowRates });
+                        }
+                    }
+                    if (tableRows.length > 0) {
+                        Android.sendRateWithTable(0, 'Tanışma Faizi', 'Akbank', JSON.stringify({headers: headers, rows: tableRows}));
+                        return true;
+                    }
+                }
+
+                // Fallback: Try to find rates in text
+                var bodyText = document.body.innerText;
+                var rateMatch = bodyText.match(/%\\s*(\\d+[,.]\\d+)/);
+                if (rateMatch) {
+                    var rate = smartParseNumber(rateMatch[1]);
+                    if (rate > 20) {
+                        // Create a mock table for consistency
+                        var headers = [{ label: "All Amounts", minAmount: 1, maxAmount: 999999999 }];
+                        var rows = [{ label: "32-35 Gün", minDays: 32, maxDays: 35, rates: [rate] }];
+                        Android.sendRateWithTable(rate, 'Tanışma Faizi', 'Akbank', JSON.stringify({headers: headers, rows: rows}));
+                        return true;
+                    }
+                }
+                return false;
             }
+
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                if (extractAkbankTable()) clearInterval(interval);
+                if (extractAkbankData()) clearInterval(interval);
                 if (++attempts > 40) { clearInterval(interval); Android.sendError('NO_MATCH'); }
             }, 800);
         } catch(e) { Android.sendError('PARSING_ERROR'); }

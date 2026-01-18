@@ -3,12 +3,11 @@ import { BankRate } from '../types';
 const SHEET_ID = '1tGaTKRLbt7cGdCYzZSR4_S_gQOwIJvifW8Mi5W8DvMY';
 const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
 
-// Helper to parse CSV line correctly handling quotes
 function parseCSVLine(line: string): string[] {
   const result = [];
   let current = '';
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (char === '"') {
@@ -24,53 +23,107 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+function parseDuration(txt: string): { min: number, max: number } {
+  const lower = txt.toLowerCase();
+  const nums = (txt.match(/\d+/g) || []).map(Number);
+  let multiplier = 1;
+
+  if (lower.includes('yıl') || lower.includes('yil')) multiplier = 365;
+  else if (lower.includes('ay') && !lower.includes('gün')) multiplier = 30;
+
+  if (nums.length >= 2) return { min: nums[0] * multiplier, max: nums[1] * multiplier };
+  if (nums.length === 1) {
+    const day = nums[0] * multiplier;
+    if (lower.includes('üzeri') || txt.includes('+')) return { min: day, max: 99999 };
+    return { min: day, max: day };
+  }
+  return { min: 0, max: 0 };
+}
+
+function parseAmountRange(txt: string): { min: number, max: number } {
+  try {
+    const content = txt.includes('(') ? txt.split('(').pop()?.split(')')[0] || '' : '';
+    if (content && content.includes('-')) {
+      const parts = content.split('-');
+      const min = parseFloat(parts[0].trim()) || 0;
+      const max = parseFloat(parts[1].trim()) || 999999999;
+      return { min, max };
+    }
+  } catch (e) { }
+  return { min: 0, max: 999999999 };
+}
+
 export const fetchSheetData = async (): Promise<BankRate[]> => {
   try {
     const response = await fetch(CSV_URL);
     if (!response.ok) {
       throw new Error(`Failed to fetch sheet: ${response.statusText}`);
     }
-    
+
     const text = await response.text();
-    const lines = text.split('\n').filter(line => line.trim() !== '');
-    
-    // Assume first row is header. We'll try to map columns dynamically or use fixed indices
-    // This is a robust approach that looks for keywords in the header row
-    const headers = parseCSVLine(lines[0].toLowerCase());
-    
-    const bankIdx = headers.findIndex(h => h.includes('bank') || h.includes('name'));
-    const rateIdx = headers.findIndex(h => h.includes('rate') || h.includes('interest') || h.includes('faiz'));
-    const maturityIdx = headers.findIndex(h => h.includes('maturity') || h.includes('day') || h.includes('vade'));
-    const amountIdx = headers.findIndex(h => h.includes('amount') || h.includes('min') || h.includes('tutar'));
-    
-    // If we can't find critical columns, throw error to trigger fallback
-    if (bankIdx === -1 || rateIdx === -1) {
-      console.warn("Could not identify columns in CSV headers:", headers);
-      return [];
+    const grid = text.split('\n').map(line => parseCSVLine(line));
+    const rates: BankRate[] = [];
+
+    const MATRIX_BLOCK_SIZE = 50;
+    const RIGHT_ZONE_START_COL = 50;
+
+    let rowIdx = 0;
+    while (rowIdx < grid.length) {
+      if (grid.length > rowIdx && grid[rowIdx].length > RIGHT_ZONE_START_COL) {
+        const labelCell = grid[rowIdx][RIGHT_ZONE_START_COL] || '';
+
+        if (labelCell.toLowerCase().includes('bank')) {
+          const bankName = (grid[rowIdx][RIGHT_ZONE_START_COL + 1] || 'Unknown').replace(/^"|"$/g, '');
+
+          // Headers are at rowIdx + 3
+          const headerRowIdx = rowIdx + 3;
+          const headerRow = grid[headerRowIdx];
+
+          if (headerRow) {
+            const amountRanges: { [key: number]: { min: number, max: number } } = {};
+
+            for (let c = RIGHT_ZONE_START_COL + 1; c < headerRow.length; c++) {
+              amountRanges[c] = parseAmountRange(headerRow[c]);
+            }
+
+            // Data Rows: rowIdx + 4 to rowIdx + 49
+            for (let r = 1; r < MATRIX_BLOCK_SIZE - 3; r++) {
+              const currRowIdx = headerRowIdx + r;
+              if (currRowIdx >= grid.length) break;
+
+              const rowData = grid[currRowIdx];
+              if (!rowData || rowData.length <= RIGHT_ZONE_START_COL) continue;
+
+              const vadeLabel = rowData[RIGHT_ZONE_START_COL];
+              if (!vadeLabel) continue;
+
+              const { min: minDays } = parseDuration(vadeLabel);
+
+              for (let c = RIGHT_ZONE_START_COL + 1; c < rowData.length; c++) {
+                const valStr = (rowData[c] || '').replace(',', '.').replace(/"/g, '');
+                const val = parseFloat(valStr);
+
+                if (!isNaN(val) && val > 0) {
+                  const range = amountRanges[c] || { min: 0, max: 999999999 };
+
+                  rates.push({
+                    id: `rate-${rowIdx}-${currRowIdx}-${c}`,
+                    bankName: bankName,
+                    interestRate: val,
+                    minAmount: range.min,
+                    maturityDays: minDays,
+                    lastUpdated: new Date().toISOString(),
+                    benefits: [],
+                    logoUrl: undefined
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      rowIdx += MATRIX_BLOCK_SIZE;
     }
-
-    const rates: BankRate[] = lines.slice(1).map((line, index): BankRate | null => {
-      const cols = parseCSVLine(line);
-      
-      // Safety check for row length
-      if (cols.length < 2) return null;
-
-      const bankName = cols[bankIdx]?.replace(/^"|"$/g, '') || 'Unknown Bank';
-      const rateStr = cols[rateIdx]?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0';
-      const maturityStr = maturityIdx !== -1 ? cols[maturityIdx]?.replace(/[^0-9]/g, '') : '32';
-      const amountStr = amountIdx !== -1 ? cols[amountIdx]?.replace(/[^0-9]/g, '') : '0';
-
-      return {
-        id: `sheet-${index}`,
-        bankName: bankName,
-        interestRate: parseFloat(rateStr),
-        minAmount: parseFloat(amountStr) || 0,
-        maturityDays: parseInt(maturityStr) || 32,
-        lastUpdated: new Date().toISOString(), // Sheet doesn't strictly have this, usually
-        benefits: [], // Sheet might not have this, leave empty
-        logoUrl: undefined
-      };
-    }).filter((r): r is BankRate => r !== null && !isNaN(r.interestRate) && r.interestRate > 0);
 
     return rates;
   } catch (error) {
