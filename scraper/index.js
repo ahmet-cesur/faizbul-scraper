@@ -347,7 +347,7 @@ async function main() {
         const TOTAL_COLS = 100; // 50 Left + 50 Right
 
         // Resize sheet to fit strict matrix
-        await matrixSheet.resize({ rowCount: TOTAL_ROWS + 10, colCount: TOTAL_COLS });
+        await matrixSheet.resize({ rowCount: TOTAL_ROWS + 10, columnCount: TOTAL_COLS });
         await matrixSheet.loadCells({ startRowIndex: 0, endRowIndex: TOTAL_ROWS, startColumnIndex: 0, endColumnIndex: TOTAL_COLS });
 
         for (const item of allStructuredResults) {
