@@ -615,6 +615,30 @@ async function main() {
             console.log('Sheet 1 updated.');
         }
 
+        // --- DELETE UNUSED SHEETS ---
+        const ALLOWED_SHEETS = ['Comparison Matrix', 'Sheet 1', 'Sheet1', 'Mevduat', 'mewduat', 'Draft'];
+        console.log('Cleaning up unused sheets...');
+
+        await doc.loadInfo(); // Refresh sheet list
+        const sheetsToDelete = [];
+
+        for (let i = 0; i < doc.sheetCount; i++) {
+            const sheet = doc.sheetsByIndex[i];
+            if (!ALLOWED_SHEETS.includes(sheet.title)) {
+                sheetsToDelete.push(sheet);
+            }
+        }
+
+        for (const sheet of sheetsToDelete) {
+            console.log(`Deleting unused sheet: ${sheet.title}`);
+            try {
+                await sheet.delete();
+            } catch (error) {
+                console.log(`Failed to delete sheet ${sheet.title}: ${error.message}`);
+            }
+        }
+        console.log('Cleanup finished.');
+
     } catch (e) {
         console.error('Finalization Error:', e.message);
         throw e;
