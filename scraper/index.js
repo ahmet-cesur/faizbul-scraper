@@ -36,14 +36,20 @@ async function main() {
         window.smartParseNumber = function(str) {
             if (str === null || str === undefined) return NaN;
             var txt = str.toString().trim();
+            // Replace non-breaking space and other weird spaces
+            txt = txt.replace(/\u00A0/g, ' ').replace(/\s+/g, '');
             var s = txt.replace(/[^\d,.-]/g, '');
             if (!s) return NaN;
             
             var lastDot = s.lastIndexOf('.');
             var lastComma = s.lastIndexOf(',');
             var res = NaN;
-            
-            if (lastComma > lastDot) {
+
+            // Handle "5,50" specifically (Comma decimal)
+            if (lastComma > -1 && lastDot === -1) {
+                 res = parseFloat(s.replace(',', '.'));
+            } 
+            else if (lastComma > lastDot) {
                 var afterComma = s.substring(lastComma + 1);
                 if (afterComma.length <= 2 && /^\d+$/.test(afterComma)) {
                      res = parseFloat(s.replace(/\./g, '').replace(',', '.'));
@@ -58,7 +64,7 @@ async function main() {
                      res = parseFloat(s.replace(/\./g, '').replace(',', '.'));
                 }
             } else {
-                res = parseFloat(s.replace(',', '.'));
+                res = parseFloat(s.replace(',', '.')); // Fallback
             }
             return res;
         };
