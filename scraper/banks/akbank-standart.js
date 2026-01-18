@@ -1,6 +1,6 @@
 module.exports = {
     name: "Akbank",
-    url: "https://www.akbank.com/mevduat-yatirim/mevduat/vadeli-mevduat-hesaplari/vadeli-mevduat-hesabi",
+    url: "https://www.akbank.com/tr-tr/urunler/Sayfalar/Vadeli-Mevduat-Hesabi.aspx",
     desc: "Standart Vadeli",
     script: `(function() {
         try {

@@ -1,6 +1,6 @@
 module.exports = {
     name: "Ziraat Bankası",
-    url: "https://www.ziraatbank.com.tr/tr/bireysel/mevduat/vadeli-hesaplar",
+    url: "https://www.ziraatbank.com.tr/tr/fiyatlar-ve-oranlar",
     desc: "İnternet Şubesi Vadeli TL",
     script: `(function() {
         try {
