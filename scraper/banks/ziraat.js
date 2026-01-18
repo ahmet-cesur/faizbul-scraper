@@ -4,10 +4,11 @@ module.exports = {
     desc: "İnternet Şubesi Vadeli TL",
     script: `(function() {
         try {
-            var amount = 100000; var duration = 32; var step = 0; var attempts = 0;
+            var attempts = 0;
             
             function parseAmountRange(txt) {
                 var val = txt.replace('TL', '').replace('ve üzeri', '').trim();
+                // Handle "1.000-5.000" or similar
                 if (val.indexOf('-') > -1) {
                     var parts = val.split('-');
                     return { min: smartParseNumber(parts[0]), max: smartParseNumber(parts[1]) };
@@ -16,13 +17,28 @@ module.exports = {
             }
 
             function extractZiraatTable() {
-                var tables = document.querySelectorAll('table');
+                // Look for header "Vadeli Türk Lirası" to narrow down
+                var headers = Array.from(document.querySelectorAll('h2, h3, a.accordion-toggle, div.accordion-heading'));
+                var targetHeader = headers.find(h => h.innerText.includes('Vadeli Türk Lirası'));
+                
+                if (!targetHeader) {
+                    // Fallback: search all tables
+                    var tables = document.querySelectorAll('table');
+                } else {
+                    // Try to find table near header
+                    // Traverse up to find container, then query table
+                    var container = targetHeader.closest('.accordion-group') || targetHeader.closest('.panel') || document.body;
+                    var tables = container.querySelectorAll('table');
+                }
+
+                if (!tables || tables.length === 0) tables = document.querySelectorAll('table');
+
                 for (var t = 0; t < tables.length; t++) {
                     var table = tables[t];
-                    var rows = Array.from(table.querySelectorAll('tr'));
-                    if (rows.length < 3) continue;
+                    var rows = Array.from(table.rows);
+                    if (rows.length < 2) continue;
                     
-                    // Find header row (the one that contains 'Vade')
+                    // Check for "Vade" in header
                     var headerRowIndex = rows.findIndex(r => r.innerText.toLowerCase().includes('vade'));
                     if (headerRowIndex === -1) continue;
                     
@@ -30,6 +46,7 @@ module.exports = {
                     var headerCells = headerRow.querySelectorAll('td, th');
                     if (headerCells.length < 2) continue;
                     
+                    // Parse Headers (Amounts)
                     var headers = [];
                     for (var i = 1; i < headerCells.length; i++) {
                         var cellTxt = headerCells[i].innerText.trim();
@@ -42,6 +59,7 @@ module.exports = {
                         var row = rows[r];
                         var cells = row.querySelectorAll('td, th');
                         if (cells.length < 2) continue;
+                        
                         var durTxt = cells[0].innerText.trim();
                         var durParsed = parseDuration(durTxt);
                         var rowRates = [];
@@ -64,24 +82,17 @@ module.exports = {
 
             var interval = setInterval(function() {
                 if (isBotDetected()) { clearInterval(interval); Android.sendError('BLOCKED'); return; }
-                if (step === 0) {
-                    var accordion = document.getElementById('accordion1') || Array.from(document.querySelectorAll('button, h2')).find(b => b.innerText.includes('Vadeli Türk Lirası'));
-                    if (accordion) {
-                        if (accordion.getAttribute('aria-expanded') !== 'true') accordion.click();
-                        step = 1;
-                    }
-                } else if (step === 1) {
-                    var radioLabel = Array.from(document.querySelectorAll('label')).find(l => l.innerText.includes('İnternet Şube'));
-                    if (radioLabel) {
-                        radioLabel.click();
-                        step = 2;
-                        attempts = 0; // Reset attempts to wait for table reload
-                    }
-                } else if (step === 2) {
-                    if (extractZiraatTable()) clearInterval(interval);
-                }
                 
-                if (++attempts > 60) { 
+                // Click accordion if needed
+                var headers = Array.from(document.querySelectorAll('h2, h3, a, button'));
+                var targetHeader = headers.find(h => h.innerText.includes('Vadeli Türk Lirası') && (h.className.includes('accordion') || h.className.includes('collapse') || h.getAttribute('data-toggle')));
+                if (targetHeader && targetHeader.click) {
+                    try { targetHeader.click(); } catch(e){}
+                }
+
+                if (extractZiraatTable()) clearInterval(interval);
+                
+                if (++attempts > 40) { 
                     clearInterval(interval); 
                     Android.sendError('NO_MATCH'); 
                 }
