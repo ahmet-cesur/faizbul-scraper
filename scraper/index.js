@@ -224,21 +224,42 @@ async function main() {
                     if (val === null || val === undefined || val === '') return 0;
                     if (typeof val === 'number') return val;
 
-                    var s = val.toString().replace(/[^\d,.-]/g, '').trim();
+                    // Clean string
+                    var s = val.toString().trim().replace(/\u00A0/g, ' ').replace(/\s+/g, '').replace(/[^\d,.-]/g, '');
                     if (!s) return 0;
 
-                    if (s.indexOf('.') > -1 && s.indexOf(',') > -1) {
-                        if (s.lastIndexOf('.') < s.lastIndexOf(',')) s = s.replace(/\./g, '').replace(',', '.');
-                        else s = s.replace(/,/g, '');
-                    } else if (s.indexOf(',') > -1) {
-                        var parts = s.split(',');
-                        if (parts[parts.length - 1].length <= 2) s = s.replace(',', '.');
-                        else s = s.replace(/,/g, '');
-                    } else if (s.indexOf('.') > -1) {
-                        var parts = s.split('.');
-                        if (parts[parts.length - 1].length > 2) s = s.replace(/\./g, '');
+                    var lastDot = s.lastIndexOf('.');
+                    var lastComma = s.lastIndexOf(',');
+                    var lastSepIndex = Math.max(lastDot, lastComma);
+                    var lastSepChar = lastSepIndex === lastDot ? '.' : ',';
+
+                    let num = 0;
+
+                    // 1. 2-Digit Rule
+                    if (lastSepIndex > -1) {
+                        var afterSep = s.substring(lastSepIndex + 1);
+                        if (afterSep.length === 2 && /^\d+$/.test(afterSep)) {
+                            if (lastSepChar === '.') num = parseFloat(s.replace(/,/g, ''));
+                            else num = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+                            return isNaN(num) ? 0 : num;
+                        }
                     }
-                    const num = parseFloat(s);
+
+                    // 2. Fallback
+                    if (lastComma > -1 && lastDot === -1) { // Only Comma
+                        if (s.substring(lastComma + 1).length === 3) num = parseFloat(s.replace(/,/g, ''));
+                        else num = parseFloat(s.replace(',', '.'));
+                    }
+                    else if (lastDot > -1 && lastComma === -1) { // Only Dot
+                        if (s.substring(lastDot + 1).length === 3) num = parseFloat(s.replace(/\./g, ''));
+                        else num = parseFloat(s);
+                    }
+                    else if (lastComma > lastDot) { // Mixed, Comma last
+                        num = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+                    } else { // Mixed, Dot last
+                        num = parseFloat(s.replace(/,/g, ''));
+                    }
+
                     return isNaN(num) ? 0 : num;
                 };
 
