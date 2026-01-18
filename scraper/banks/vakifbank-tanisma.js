@@ -26,7 +26,7 @@ module.exports = {
                         for (var c = 1; c < cells.length; c++) {
                             var cellText = cells[c].innerText;
                             var rate = smartParseNumber(cellText);
-                            if (r === 1 && c <= 3) console.log('INTERN: Cell[' + r + '][' + c + '] = "' + cellText + '" -> ' + rate);
+                            var rate = smartParseNumber(cellText);
                             rates.push(isNaN(rate) ? 0 : rate);
                         }
                         if (rates.some(r => r > 0)) {
