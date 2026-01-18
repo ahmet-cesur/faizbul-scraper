@@ -421,50 +421,60 @@ async function main() {
                 });
             }
 
-            // --- SEED RIGHT SIDE (MANUAL ZONE) IF EMPTY ---
+            // --- RIGHT SIDE (MANUAL ZONE) UPDATE ---
+            // Requirement: "Right side updates if left is really successfully updated only."
+            // Since we are inside the 'allStructuredResults' loop, we know the Left side was successfully scraped.
+            // We will now overwrite the Right Side with this fresh data to keep it in sync.
+            // If the scraper FAILED, this loop does NOT run for that bank, so the Right Side (and User Edits) are preserved.
+
             const rightStartCol = 50;
-            const checkCell = matrixSheet.getCell(startRow, rightStartCol);
+            console.log(`Updating Right Side (Manual Zone) for ${item.bank} (ID: ${item.id})...`);
 
-            if (!checkCell.value) {
-                console.log(`Seeding Right Side (Manual Zone) for ${item.bank} (ID: ${item.id})...`);
-                // Copy Header Info
-                matrixSheet.getCell(startRow, rightStartCol).value = "Bank (Manual):";
-                matrixSheet.getCell(startRow, rightStartCol + 1).value = item.bank;
-
-                matrixSheet.getCell(startRow + 1, rightStartCol).value = "Last Sync:";
-                matrixSheet.getCell(startRow + 1, rightStartCol + 1).value = executionDate;
-
-                matrixSheet.getCell(startRow + 2, rightStartCol).value = "ID:";
-                matrixSheet.getCell(startRow + 2, rightStartCol + 1).value = item.id;
-
-                matrixSheet.getCell(startRow + 2, rightStartCol + 2).value = "URL:";
-                matrixSheet.getCell(startRow + 2, rightStartCol + 3).value = item.url || "";
-
-                // Copy Table Headers
-                const hRow = startRow + 3;
-                matrixSheet.getCell(hRow, rightStartCol).value = "Vade";
-                let colOff = 1;
-                if (item.table.headers) {
-                    item.table.headers.forEach(h => {
-                        matrixSheet.getCell(hRow, rightStartCol + colOff).value = `${h.label} (${h.minAmount}-${h.maxAmount})`;
-                        colOff++;
-                    });
+            // 1. Clear the Right Block Area first (avoid artifacts)
+            for (let r = 0; r < MATRIX_BLOCK_SIZE; r++) {
+                for (let c = 0; c < 50; c++) {
+                    const cell = matrixSheet.getCell(startRow + r, rightStartCol + c);
+                    cell.value = null;
                 }
+            }
 
-                // Copy Rows (Values only)
-                if (item.table.rows) {
-                    item.table.rows.forEach((r, idx) => {
-                        const rowAbs = hRow + 1 + idx;
-                        if (rowAbs >= startRow + MATRIX_BLOCK_SIZE) return;
+            // 2. Write Header Info
+            matrixSheet.getCell(startRow, rightStartCol).value = "Bank (Manual):";
+            matrixSheet.getCell(startRow, rightStartCol + 1).value = item.bank;
 
-                        matrixSheet.getCell(rowAbs, rightStartCol).value = r.label;
-                        r.rates.forEach((rate, rIdx) => {
-                            if (rIdx + 1 < 50) {
-                                matrixSheet.getCell(rowAbs, rightStartCol + rIdx + 1).value = rate;
-                            }
-                        });
+            matrixSheet.getCell(startRow + 1, rightStartCol).value = "Last Sync:";
+            matrixSheet.getCell(startRow + 1, rightStartCol + 1).value = executionDate;
+
+            matrixSheet.getCell(startRow + 2, rightStartCol).value = "ID:";
+            matrixSheet.getCell(startRow + 2, rightStartCol + 1).value = item.id;
+
+            matrixSheet.getCell(startRow + 2, rightStartCol + 2).value = "URL:";
+            matrixSheet.getCell(startRow + 2, rightStartCol + 3).value = item.url || "";
+
+            // 3. Write Table Headers
+            const hRow = startRow + 3;
+            matrixSheet.getCell(hRow, rightStartCol).value = "Vade";
+            let colOff = 1;
+            if (item.table.headers) {
+                item.table.headers.forEach(h => {
+                    matrixSheet.getCell(hRow, rightStartCol + colOff).value = `${h.label} (${h.minAmount}-${h.maxAmount})`;
+                    colOff++;
+                });
+            }
+
+            // 4. Write Rows (Values only)
+            if (item.table.rows) {
+                item.table.rows.forEach((r, idx) => {
+                    const rowAbs = hRow + 1 + idx;
+                    if (rowAbs >= startRow + MATRIX_BLOCK_SIZE) return;
+
+                    matrixSheet.getCell(rowAbs, rightStartCol).value = r.label;
+                    r.rates.forEach((rate, rIdx) => {
+                        if (rIdx + 1 < 50) {
+                            matrixSheet.getCell(rowAbs, rightStartCol + rIdx + 1).value = rate;
+                        }
                     });
-                }
+                });
             }
         }
 
